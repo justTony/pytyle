@@ -9,7 +9,7 @@ from pytyle.window import Window
 from pytyle.dispatcher import Dispatcher
 
 cmds = {
-    'Alt-Shift-Return': 'list-windows-by-id',
+    'Alt-Return': 'list-windows-by-id',
     'Alt-Z': 'list-windows-by-name',
     'Ctrl-C': 'quit',
     'Alt-A': 'tile',
