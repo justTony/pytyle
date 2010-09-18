@@ -7,12 +7,28 @@ from connection import XCONN
 from events import events
 
 class Window(object):
+    queue = []
+
+    @staticmethod
+    def exec_queue():
+        for tup in Window.queue:
+            tup[0](*tup[1:])
+        Window.queue = []
+
     def __init__(self, wid):
         self.wid = wid
         self._box = {
             'htop': None, 'hbot': None,
             'vleft': None, 'vright': None
         }
+
+    def query_tree_parent(self):
+        return Window(XCONN.get_core().QueryTree(self.wid).reply().parent)
+
+    def query_tree_children(self):
+        children = XCONN.get_core().QueryTree(self.wid).reply().children
+
+        return [wid for wid in children]
 
     def get_name(self):
         return self.get_property('_NET_WM_NAME')
@@ -105,6 +121,8 @@ class Window(object):
             ]
         )
 
+        XCONN.push()
+
     def restore(self):
         self.send_client_event(
             Atom.get_atom('_NET_WM_STATE'),
@@ -138,31 +156,38 @@ class Window(object):
         )
 
     def moveresize(self, x, y, width, height):
+        Window.queue.append(
+            (Window._moveresize, self, x, y, width, height)
+        )
+
+    def _moveresize(self, x, y, width, height):
         # I might be able to move this elsewhere...
         # Doesn't need to be calculated every time,
         # just when decorations are toggled
         # Also, does it work in other WM's besides Openbox?
         rx, ry, rwidth, rheight = self.get_raw_geometry()
-        px, py, pwidth, pheight = Window(XCONN.get_core().QueryTree(self.wid).reply().parent).get_raw_geometry()
+        px, py, pwidth, pheight = self.query_tree_parent().get_raw_geometry()
 
-        # XCONN.get_core().ConfigureWindow(
-            # self.wid,
-            # xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
-            # [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
+        XCONN.get_core().ConfigureWindow(
+            self.wid,
+            xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
+            [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
+        )
+
+        # self.send_client_event(
+            # Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
+            # [
+                # xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
+                # x,
+                # y,
+                # width - (pwidth - rwidth),
+                # height - (pheight - rheight)
+            # ],
+            # 32,
+            # xcb.xproto.EventMask.StructureNotify
         # )
 
-        self.send_client_event(
-            Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
-            [
-                xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
-                x,
-                y,
-                width - (pwidth - rwidth),
-                height - (pheight - rheight)
-            ],
-            32,
-            xcb.xproto.EventMask.StructureNotify
-        )
+        XCONN.push()
 
     def close(self):
         self.send_client_event(

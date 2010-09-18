@@ -67,10 +67,17 @@ def dispatch(e):
             'mode': NotifyModes[e.mode]
         }
 
-    #~ print '-' * 30
-    #~ print e
-    #~ print e.__class__
-    #~ print e.__len__()
-    #~ print e.__str__()
-    #~ print dir(e)
-    #~ print '-' * 30
+    elif isinstance(e, xcb.xproto.CreateNotifyEvent):
+        return {
+            'event': 'CreateNotifyEvent',
+            'window': Window(e.window),
+            'x': e.x,
+            'y': e.y,
+            'width': e.width,
+            'height': e.height
+        }
+
+    # print '-' * 30
+    # print e
+    # print dir(e)
+    # print '-' * 30

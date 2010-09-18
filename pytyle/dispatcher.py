@@ -61,6 +61,17 @@ class Dispatcher(object):
         if a == '_NET_ACTIVE_WINDOW':
             STATE.refresh_active()
 
+    # Don't register new windows this way... Use _NET_CLIENT_LIST instead
+    # You did it the first time for good reason!
+    def CreateNotifyEvent(self):
+        win = Window.deep_lookup(self._event_data['window'].wid)
+
+        if win:
+            print win.name
+        else:
+            print self._event_data['window'].wid, self._event_data['window'].get_name()
+
+
     # Use the following to track window movement..? Hmmm
     # ConfigureNotify doesn't get reported when windows are moved (yes when resized)
     # It is reported for the ROOT window, however there is no way to know

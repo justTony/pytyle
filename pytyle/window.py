@@ -22,6 +22,9 @@ class Window(object):
             padded_name, self.id, self.monitor.workspace.id, self.monitor.id, self.x, self.y, self.width, self.height
         )
 
+    def maximize(self):
+        self._xwin.maximize()
+
     def moveresize(self, x, y, width, height):
         self._xwin.restore()
         self._xwin.moveresize(x, y, width, height)
@@ -58,6 +61,21 @@ class Window(object):
     def lookup(wid):
         if wid in Window.WINDOWS:
             return Window.WINDOWS[wid]
+        return None
+
+    @staticmethod
+    def deep_lookup(wid):
+        ret = Window.lookup(wid)
+
+        if ret:
+            return ret
+
+        for child_wid in ptxcb.Window(wid).query_tree_children():
+            ret = Window.lookup(child_wid)
+
+            if ret:
+                return ret
+
         return None
 
     @staticmethod

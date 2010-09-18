@@ -37,6 +37,8 @@ while True:
 
     ptxcb.XCONN.push()
 
+    ptxcb.Window.exec_queue()
+
     if d.stop():
         break
 
