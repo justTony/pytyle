@@ -38,15 +38,24 @@ class Monitor(object):
 
         for wid in wids:
             win = ptxcb.Window(wid)
-            geom = win.get_geometry()
+            x, y, w, h = win.get_geometry()
 
-            if self.workspace.contains(win.get_desktop_number()) and self.contains(geom[0], geom[1]):
+            if self.workspace.contains(win.get_desktop_number()) and self.contains(x, y):
                 struts = win.get_strut_partial()
+
                 if not struts:
                     struts = win.get_strut()
 
-                if struts:
-                    self.workspace.id, self.id, win.get_visible_name(), struts, '\n'
+                if struts and not all([x == 0 for x in struts]):
+                    if struts['left'] or struts['right']:
+                        if struts['left']:
+                            self.wa_x -= w
+                        self.wa_width -= w
+
+                    if struts['top'] or struts['bottom']:
+                        if struts['top']:
+                            self.wa_y -= h
+                        self.wa_height -= h
 
     @staticmethod
     def lookup(wsid, x, y):

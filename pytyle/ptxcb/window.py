@@ -78,22 +78,22 @@ class Window(object):
             'bottom': raw[3]
         }
 
-    def get_geometry(self):
+    def get_raw_geometry(self):
         raw = XCONN.get_core().GetGeometry(self.wid).reply()
 
-        ret = {
-            'x': raw.x,
-            'y': raw.y,
-            'width': raw.width,
-            'height': raw.height
-        }
+        return (raw.x, raw.y, raw.width, raw.height)
 
-        raw = XCONN.get_core().TranslateCoordinates(self.wid, raw.root, ret['x'], ret['y']).reply()
+    def get_geometry(self):
+        rx, ry, rwidth, rheight = self.get_raw_geometry()
 
-        ret['x'] = raw.dst_x - (2 * ret['x'])
-        ret['y'] = raw.dst_y - (2 * ret['y'])
+        rawtrans = XCONN.get_core().TranslateCoordinates(self.wid, XROOT.wid, rx, ry).reply()
 
-        return (ret['x'], ret['y'], ret['width'], ret['height'])
+        return (
+            rawtrans.dst_x - (2 * rx),
+            rawtrans.dst_y - (2 * ry),
+            rwidth,
+            rheight
+        )
 
     def maximize(self):
         self.send_client_event(
@@ -114,6 +114,8 @@ class Window(object):
                 Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
             ]
         )
+
+        XCONN.push()
 
     def send_to_desktop(self, desktop_num):
         self.send_client_event(Atom.get_atom('_NET_WM_DESKTOP'), [desktop_num])
@@ -136,11 +138,18 @@ class Window(object):
         )
 
     def moveresize(self, x, y, width, height):
-        #~ XCONN.get_core().ConfigureWindow(
-            #~ self.wid,
-            #~ xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
-            #~ [x, y, width, height]
-        #~ )
+        # I might be able to move this elsewhere...
+        # Doesn't need to be calculated every time,
+        # just when decorations are toggled
+        # Also, does it work in other WM's besides Openbox?
+        rx, ry, rwidth, rheight = self.get_raw_geometry()
+        px, py, pwidth, pheight = Window(XCONN.get_core().QueryTree(self.wid).reply().parent).get_raw_geometry()
+
+        # XCONN.get_core().ConfigureWindow(
+            # self.wid,
+            # xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
+            # [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
+        # )
 
         self.send_client_event(
             Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
@@ -148,8 +157,8 @@ class Window(object):
                 xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
                 x,
                 y,
-                width,
-                height
+                width - (pwidth - rwidth),
+                height - (pheight - rheight)
             ],
             32,
             xcb.xproto.EventMask.StructureNotify

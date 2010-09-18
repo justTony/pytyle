@@ -35,6 +35,8 @@ while True:
 
     d = Dispatcher(event_data)
 
+    ptxcb.XCONN.push()
+
     if d.stop():
         break
 

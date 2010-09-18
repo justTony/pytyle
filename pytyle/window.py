@@ -22,6 +22,10 @@ class Window(object):
             padded_name, self.id, self.monitor.workspace.id, self.monitor.id, self.x, self.y, self.width, self.height
         )
 
+    def moveresize(self, x, y, width, height):
+        self._xwin.restore()
+        self._xwin.moveresize(x, y, width, height)
+
     def load(self):
         self.name = self._xwin.get_name()
         self.x, self.y, self.width, self.height = self._xwin.get_geometry()

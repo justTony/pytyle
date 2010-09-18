@@ -1,6 +1,7 @@
 from workspace import Workspace
 from monitor import Monitor
 from state import STATE
+from autostore import AutoStore
 
 class Tile(object):
     TILING = {}
@@ -10,10 +11,7 @@ class Tile(object):
         self.monitor = Monitor.MONITORS[wsid][mid]
 
     def tile(self):
-        print self.workspace.id
-        print self.monitor.id
-        for win in STATE.iter_windows(self.workspace.id, self.monitor.id):
-            print win.name
+        pass
 
     @staticmethod
     def dispatch(tiler, command):
@@ -36,6 +34,11 @@ class Tile(object):
 class AutoTile(Tile):
     def __init__(self, wsid, mid):
         Tile.__init__(self, wsid, mid)
+
+        self.store = AutoStore()
+
+        for win in STATE.iter_windows(self.workspace.id, self.monitor.id):
+            self.store.add(win.id)
 
 # We need two types of storage mechanisms for tiling windows...
 # Firstly, for *just* the auto tiling layouts, we need a tile store
