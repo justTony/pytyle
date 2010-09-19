@@ -27,7 +27,6 @@ class Vertical(AutoTile):
                 m_width = self.monitor.wa_width
 
             for i, wid in enumerate(self.store.masters):
-                print m_x, i * m_height, m_width, m_height
                 Window.lookup(wid).moveresize(
                     m_x,
                     i * m_height,

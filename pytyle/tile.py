@@ -40,6 +40,14 @@ class AutoTile(Tile):
         for win in STATE.iter_windows(self.workspace.id, self.monitor.id):
             self.store.add(win.id)
 
+    def add(self, wid):
+        self.store.add(wid)
+        self.tile()
+
+    def remove(self, wid):
+        self.store.remove(wid)
+        self.tile()
+
 # We need two types of storage mechanisms for tiling windows...
 # Firstly, for *just* the auto tiling layouts, we need a tile store
 # that keeps track of which windows are masters and which are slaves...

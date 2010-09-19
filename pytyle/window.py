@@ -79,6 +79,16 @@ class Window(object):
         return None
 
     @staticmethod
+    def add(wid):
+        if wid not in Window.WINDOWS:
+            win = Window(wid)
+
+            if win.is_manageable():
+                Window.WINDOWS[wid] = win
+                return win
+        return False
+
+    @staticmethod
     def refresh():
         wids = ptxcb.XROOT.get_window_ids()
 
@@ -93,7 +103,7 @@ class Window(object):
 
         for wid in Window.WINDOWS.keys():
             if wid not in wids:
-                Window.WINDOWS[wid].remove()
+                #Window.WINDOWS[wid].remove()
                 del Window.WINDOWS[wid]
 
         ptxcb.XCONN.push()

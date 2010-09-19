@@ -60,16 +60,30 @@ class Dispatcher(object):
 
         if a == '_NET_ACTIVE_WINDOW':
             STATE.refresh_active()
+        elif a == '_NET_CLIENT_LIST':
+            old = ptxcb.XROOT.windows
+            new = ptxcb.XROOT.get_window_ids()
+
+            for wid in new.difference(old):
+                win = Window.add(wid)
+                if win and win.monitor.workspace.id in Tile.TILING and win.monitor.id in Tile.TILING[win.monitor.workspace.id]:
+                    Tile.TILING[win.monitor.workspace.id][win.monitor.id].add(wid)
+
+            for wid in old.difference(new):
+                win = Window.lookup(wid)
+                if win:
+                    Tile.TILING[win.monitor.workspace.id][win.monitor.id].remove(wid)
+
+            # Without this, things get screwy...
+            # We don't want to use this... investigate!
+            STATE.refresh()
+
+            #print 'Deleted windows: %s' % old.difference(new)
 
     # Don't register new windows this way... Use _NET_CLIENT_LIST instead
     # You did it the first time for good reason!
     def CreateNotifyEvent(self):
-        win = Window.deep_lookup(self._event_data['window'].wid)
-
-        if win:
-            print win.name
-        else:
-            print self._event_data['window'].wid, self._event_data['window'].get_name()
+        pass
 
 
     # Use the following to track window movement..? Hmmm

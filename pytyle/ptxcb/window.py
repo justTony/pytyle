@@ -414,6 +414,7 @@ class RootWindow(Window):
 
         self.wid = XCONN.get_setup().roots[0].root
         Atom.build_cache()
+        self.windows = set()
 
         self.set_event_masks(
             xcb.xproto.EventMask.SubstructureNotify |
@@ -432,7 +433,8 @@ class RootWindow(Window):
         return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_SUPPORTED')]
 
     def get_window_ids(self):
-        return self.get_property('_NET_CLIENT_LIST')
+        self.windows = set(self.get_property('_NET_CLIENT_LIST'))
+        return self.windows
 
     def get_number_of_desktops(self):
         return self.get_property('_NET_NUMBER_OF_DESKTOPS')[0]
