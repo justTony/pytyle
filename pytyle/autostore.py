@@ -15,20 +15,33 @@ class AutoStore(object):
                 self.masters.insert(0, wid)
             else:
                 self.masters.append(wid)
-        else:
+
+            Window.lookup(wid).set_tiling(True)
+        elif wid not in self.slaves:
             if top:
                 self.slaves.insert(0, wid)
             else:
                 self.slaves.append(wid)
 
+            Window.lookup(wid).set_tiling(True)
+
     def remove(self, wid):
+        # Window might be gone by the time we get here...
+        win = Window.lookup(wid)
+
         if wid in self.masters:
             self.masters.remove(wid)
 
-            if len(self.masters) < self.mcnt:
+            if len(self.masters) < self.mcnt and self.slaves:
                 self.masters.append(self.slaves.pop(0))
+
+            if win:
+                win.set_tiling(False)
         elif wid in self.slaves:
             self.slaves.remove(wid)
+
+            if win:
+                win.set_tiling(False)
 
     def switch(self, wid1, wid2):
         if wid1 in self.masters and wid2 in self.masters:

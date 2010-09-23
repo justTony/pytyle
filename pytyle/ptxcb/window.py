@@ -1,4 +1,4 @@
-import struct
+import struct, traceback
 
 import xcb.xproto, xcb.xcb
 
@@ -22,13 +22,38 @@ class Window(object):
             'vleft': None, 'vright': None
         }
 
+    def listen(self):
+        self.set_event_masks(
+            xcb.xproto.EventMask.PropertyChange |
+            xcb.xproto.EventMask.FocusChange
+        )
+
+    def unlisten(self):
+        self.set_event_masks(0)
+
+    def query_pointer(self):
+        return XCONN.get_core().QueryPointer(self.wid).reply()
+
+    def button_pressed(self):
+        pointer = self.query_pointer()
+
+        if xcb.xproto.KeyButMask.Button1 & pointer.mask:
+            return True
+        return False
+
     def query_tree_parent(self):
-        return Window(XCONN.get_core().QueryTree(self.wid).reply().parent)
+        try:
+            return Window(XCONN.get_core().QueryTree(self.wid).reply().parent)
+        except:
+            return False
 
     def query_tree_children(self):
-        children = XCONN.get_core().QueryTree(self.wid).reply().children
+        try:
+            children = XCONN.get_core().QueryTree(self.wid).reply().children
 
-        return [wid for wid in children]
+            return [wid for wid in children]
+        except:
+            return False
 
     def get_name(self):
         return self.get_property('_NET_WM_NAME')
@@ -94,22 +119,15 @@ class Window(object):
             'bottom': raw[3]
         }
 
-    def get_raw_geometry(self):
-        raw = XCONN.get_core().GetGeometry(self.wid).reply()
+    def maximized(self):
+        raw = self.get_property('_NET_WM_STATE')
 
-        return (raw.x, raw.y, raw.width, raw.height)
+        vatom = Atom.get_atom('_NET_WM_STATE_MAXIMIZED_VERT')
+        hatom = Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
 
-    def get_geometry(self):
-        rx, ry, rwidth, rheight = self.get_raw_geometry()
-
-        rawtrans = XCONN.get_core().TranslateCoordinates(self.wid, XROOT.wid, rx, ry).reply()
-
-        return (
-            rawtrans.dst_x - (2 * rx),
-            rawtrans.dst_y - (2 * ry),
-            rwidth,
-            rheight
-        )
+        if vatom in raw and hatom in raw:
+            return True
+        return False
 
     def maximize(self):
         self.send_client_event(
@@ -149,11 +167,45 @@ class Window(object):
         )
 
     def stack(self, above):
-        XCONN.get_core().ConfigureWindow(
-            self.wid,
-            xcb.xproto.ConfigWindow.StackMode,
-            [xcb.xproto.StackMode.Above if above else xcb.xproto.StackMode.Below]
-        )
+        try:
+            XCONN.get_core().ConfigureWindow(
+                self.wid,
+                xcb.xproto.ConfigWindow.StackMode,
+                [xcb.xproto.StackMode.Above if above else xcb.xproto.StackMode.Below]
+            )
+        except:
+            return False
+
+    def get_raw_geometry(self):
+        try:
+            raw = XCONN.get_core().GetGeometry(self.wid).reply()
+
+            return (raw.x, raw.y, raw.width, raw.height)
+        except:
+            return False
+
+    def get_geometry(self):
+        try:
+            rx, ry, rwidth, rheight = self.query_tree_parent().get_raw_geometry()
+
+            return (
+                rx,
+                ry,
+                rwidth,
+                rheight
+            )
+
+            # rx, ry, rwidth, rheight = self.get_raw_geometry()
+            # rawtrans = XCONN.get_core().TranslateCoordinates(self.wid, XROOT.wid, rx, ry).reply()
+    #
+            # return (
+                # rawtrans.dst_x - (2 * rx),
+                # rawtrans.dst_y - (2 * ry),
+                # rwidth,
+                # rheight
+            # )
+        except:
+            return False
 
     def moveresize(self, x, y, width, height):
         Window.queue.append(
@@ -161,33 +213,36 @@ class Window(object):
         )
 
     def _moveresize(self, x, y, width, height):
-        # I might be able to move this elsewhere...
-        # Doesn't need to be calculated every time,
-        # just when decorations are toggled
-        # Also, does it work in other WM's besides Openbox?
-        rx, ry, rwidth, rheight = self.get_raw_geometry()
-        px, py, pwidth, pheight = self.query_tree_parent().get_raw_geometry()
+        try:
+            # I might be able to move this elsewhere...
+            # Doesn't need to be calculated every time,
+            # just when decorations are toggled
+            # Also, does it work in other WM's besides Openbox?
+            rx, ry, rwidth, rheight = self.get_raw_geometry()
+            px, py, pwidth, pheight = self.query_tree_parent().get_raw_geometry()
 
-        XCONN.get_core().ConfigureWindow(
-            self.wid,
-            xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
-            [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
-        )
+            XCONN.get_core().ConfigureWindow(
+                self.wid,
+                xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
+                [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
+            )
 
-        # self.send_client_event(
-            # Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
-            # [
-                # xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
-                # x,
-                # y,
-                # width - (pwidth - rwidth),
-                # height - (pheight - rheight)
-            # ],
-            # 32,
-            # xcb.xproto.EventMask.StructureNotify
-        # )
+            # self.send_client_event(
+                # Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
+                # [
+                    # xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
+                    # x,
+                    # y,
+                    # width - (pwidth - rwidth),
+                    # height - (pheight - rheight)
+                # ],
+                # 32,
+                # xcb.xproto.EventMask.StructureNotify
+            # )
 
-        XCONN.push()
+            XCONN.push()
+        except:
+            return False
 
     def close(self):
         self.send_client_event(
@@ -238,123 +293,142 @@ class Window(object):
             box.close()
 
     def get_property(self, atom_name):
-        rsp = XCONN.get_core().GetProperty(
-            False,
-            self.wid,
-            Atom.get_atom(atom_name),
-            Atom.get_atom_type(atom_name),
-            0,
-            (2 ** 32) - 1
-        ).reply()
+        try:
+            rsp = XCONN.get_core().GetProperty(
+                False,
+                self.wid,
+                Atom.get_atom(atom_name),
+                Atom.get_atom_type(atom_name),
+                0,
+                (2 ** 32) - 1
+            ).reply()
 
-        if not Atom.get_type_name(atom_name):
-            return ''
+            if not Atom.get_type_name(atom_name):
+                return ''
 
-        if Atom.get_type_name(atom_name) == 'UTF8_STRING':
-            return Atom.ords_to_str(rsp.value)
-        elif Atom.get_type_name(atom_name) == 'UTF8_STRING[]':
-            return Atom.null_terminated_to_strarray(rsp.value)
-        else:
-            return list(struct.unpack('I' * (len(rsp.value) / 4), rsp.value.buf()))
+            if Atom.get_type_name(atom_name) == 'UTF8_STRING':
+                return Atom.ords_to_str(rsp.value)
+            elif Atom.get_type_name(atom_name) == 'UTF8_STRING[]':
+                return Atom.null_terminated_to_strarray(rsp.value)
+            else:
+                return list(struct.unpack('I' * (len(rsp.value) / 4), rsp.value.buf()))
+        except:
+            pass
 
     def send_client_event(self, message_type, data, format=32, event_mask=xcb.xproto.EventMask.SubstructureRedirect):
         XROOT.send_event(self.wid, message_type, data, format, event_mask)
 
     def send_event(self, to_wid, message_type, data, format=32, event_mask=xcb.xproto.EventMask.SubstructureRedirect):
-        data = data + ([0] * (5 - len(data)))
-        packed = struct.pack(
-            'BBH7I',
-            events['ClientMessageEvent'],
-            format,
-            0,
-            to_wid,
-            message_type,
-            data[0], data[1], data[2], data[3], data[4]
-        )
+        try:
+            data = data + ([0] * (5 - len(data)))
+            packed = struct.pack(
+                'BBH7I',
+                events['ClientMessageEvent'],
+                format,
+                0,
+                to_wid,
+                message_type,
+                data[0], data[1], data[2], data[3], data[4]
+            )
 
-        XCONN.get_core().SendEvent(
-            False,
-            self.wid,
-            event_mask,
-            packed
-        )
+            XCONN.get_core().SendEvent(
+                False,
+                self.wid,
+                event_mask,
+                packed
+            )
+        except:
+            print traceback.format_exc()
 
     def set_event_masks(self, event_masks):
-        XCONN.get_core().ChangeWindowAttributes(
-            self.wid,
-            xcb.xproto.CW.EventMask,
-            [event_masks]
-        )
+        try:
+            XCONN.get_core().ChangeWindowAttributes(
+                self.wid,
+                xcb.xproto.CW.EventMask,
+                [event_masks]
+            )
+        except:
+            print traceback.format_exc()
 
     def grab_key(self, key, modifiers):
-        addmods = [
-            0,
-            xcb.xproto.ModMask.Lock,
-            xcb.xproto.ModMask._2,
-            xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
-        ]
+        try:
+            addmods = [
+                0,
+                xcb.xproto.ModMask.Lock,
+                xcb.xproto.ModMask._2,
+                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
+            ]
 
-        for mod in addmods:
-            XCONN.get_core().GrabKey(
-                True,
-                self.wid,
-                modifiers | mod,
-                key,
-                xcb.xproto.GrabMode.Async,
-                xcb.xproto.GrabMode.Async
-            )
+            for mod in addmods:
+                XCONN.get_core().GrabKey(
+                    True,
+                    self.wid,
+                    modifiers | mod,
+                    key,
+                    xcb.xproto.GrabMode.Async,
+                    xcb.xproto.GrabMode.Async
+                )
+        except:
+            print traceback.format_exc()
+            print 'Could not grab key:', modifiers, '---', key
 
     def ungrab_key(self, key, modifiers):
-        addmods = [
-            0,
-            xcb.xproto.ModMask.Lock,
-            xcb.xproto.ModMask._2,
-            xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
-        ]
+        try:
+            addmods = [
+                0,
+                xcb.xproto.ModMask.Lock,
+                xcb.xproto.ModMask._2,
+                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
+            ]
 
-        for mod in addmods:
-            XCONN.get_core().UngrabKey(
-                key,
-                self.wid,
-                modifiers | mod,
-            )
+            for mod in addmods:
+                XCONN.get_core().UngrabKey(
+                    key,
+                    self.wid,
+                    modifiers | mod,
+                )
+        except:
+            print traceback.format_exc()
+            print 'Could not ungrab key:', modifiers, '---', key
 
     def grab_button(self, key, modifiers=xcb.xproto.ModMask.Any):
-        XCONN.get_core().GrabButton(
-            True,
-            self.wid,
-            xcb.xproto.EventMask.ButtonPress,
-            xcb.xproto.GrabMode.Async,
-            xcb.xproto.GrabMode.Async,
-            0,
-            0,
-            key,
-            modifiers
-        )
+        try:
+            XCONN.get_core().GrabButton(
+                True,
+                self.wid,
+                xcb.xproto.EventMask.ButtonPress,
+                xcb.xproto.GrabMode.Async,
+                xcb.xproto.GrabMode.Async,
+                0,
+                0,
+                key,
+                modifiers
+            )
+        except:
+            print traceback.format_exc()
+            print 'Could not grab button:', modifiers, '---', key
 
     # Not currently used
     def set_property(self, atom_name, value):
-        #data = [el0, el1, el2]
-        #print data
-        #buf = struct.pack('I', el0)
-        #print buf
+        try:
+            if isinstance(value, list):
+                data = struct.pack(len(value) * 'I', *value)
+                data_len = len(value)
+            else:
+                data_len = len(value)
+                data = value
 
-        if isinstance(value, list):
-            data = struct.pack(len(value) * 'I', *value)
-            data_len = len(value)
-        else:
-            data_len = len(value)
-            data = value
-
-        XCONN.get_conn().core.ChangeProperty(
-            xcb.xproto.PropMode.Replace,
-            self.wid,
-            Atom.get_atom(atom_name),
-            Atom.get_atom_type(atom_name),
-            Atom.get_atom_length(atom_name),
-            data_len,
-            data
-        )
+            XCONN.get_conn().core.ChangeProperty(
+                xcb.xproto.PropMode.Replace,
+                self.wid,
+                Atom.get_atom(atom_name),
+                Atom.get_atom_type(atom_name),
+                Atom.get_atom_length(atom_name),
+                data_len,
+                data
+            )
+        except:
+            print traceback.format_exc()
 
 class LineWindow(Window):
     def __init__(self, x, y, width, height):
@@ -416,6 +490,9 @@ class RootWindow(Window):
         Atom.build_cache()
         self.windows = set()
 
+        self.listen()
+
+    def listen(self):
         self.set_event_masks(
             xcb.xproto.EventMask.SubstructureNotify |
             xcb.xproto.EventMask.StructureNotify |
@@ -498,7 +575,7 @@ class RootWindow(Window):
         return False
 
     def get_pointer_position(self):
-        raw = XCONN.get_core().QueryPointer(self.wid).reply()
+        raw = self.query_pointer()
 
         return (raw.root_x, raw.root_y)
 

@@ -6,7 +6,13 @@ from atom import Atom
 
 def dispatch(e):
     NotifyModes = {
-        0: 'Normal', 1: 'Grab', 2: 'Ungrab', 'WhileGrabbed': 3
+        0: 'Normal', 1: 'Grab', 2: 'Ungrab', 3: 'WhileGrabbed'
+    }
+
+    NotifyDetails = {
+        0: 'Ancestor', 1: 'Virtual', 2: 'Inferior', 3: 'Nonlinear',
+        4: 'NonlinearVirtual', 5: 'Pointer', 6: 'PointerRoot',
+        7: 'None'
     }
 
     if isinstance(e, xcb.xproto.KeyPressEvent):
@@ -55,7 +61,7 @@ def dispatch(e):
         return {
             'event': 'FocusInEvent',
             'window': Window(e.event),
-            'detail': e.detail,
+            'detail': NotifyDetails[e.detail],
             'mode': NotifyModes[e.mode]
         }
 
@@ -63,7 +69,7 @@ def dispatch(e):
         return {
             'event': 'FocusOutEvent',
             'window': Window(e.event),
-            'detail': e.detail,
+            'detail': NotifyDetails[e.detail],
             'mode': NotifyModes[e.mode]
         }
 

@@ -1,3 +1,5 @@
+import time
+
 import ptxcb
 import tilers
 from command import Command
@@ -16,34 +18,58 @@ class Dispatcher(object):
             getattr(self, self._event_data['event'])()
         else:
             print 'Unrecognized event: %s' % self._event_data['event']
+            return
+
+        ptxcb.Window.exec_queue()
+        Tile.exec_queue()
+
+        ptxcb.XCONN.push()
 
     def stop(self):
         return self._stop
 
     def KeyPressEvent(self):
         cmd = Command.lookup(self._event_data['keycode'], self._event_data['modifiers'])
+        x = cmd.get_command()
 
-        if cmd.get_command() == 'quit':
+        if x == 'quit':
+            for tiler in Tile.iter_tilers():
+                tiler.untile()
+
             self._stop = True
+        elif x == 'debug':
+            STATE.print_hierarchy(*STATE.get_active_wsid_and_mid())
         else:
-            Tile.dispatch(tilers.Vertical, cmd.get_command())
+            Tile.dispatch(tilers.Vertical, x)
 
     def ConfigureNotifyEvent(self):
-        pass
-        #~ print '-' * 30
-        #~ print 'ConfigureNotify'
-        #~ print 'Root?', self._event_data['ewin'].wid
-        #~ print 'Window:', hex(self._event_data['window'].wid), self._event_data['window'].get_visible_name()
-        #~ qtree = ptxcb.XCONN.get_core().QueryTree(self._event_data['window'].wid).reply()
-#~
-        #~ for c in qtree.children:
-            #~ win = Window.lookup(c)
-            #~ if win:
-                #~ print win.name
-#~
-        #~ print 'x, y:', self._event_data['x'], self._event_data['y']
-        #~ print 'w, h:', self._event_data['width'], self._event_data['height']
-        #~ print '-' * 30
+        win = Window.deep_lookup(self._event_data['window'].wid)
+
+        # Only continue if we can find a recognizable window
+        if win and win.lives():
+            if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
+                pointer = ptxcb.XROOT.query_pointer()
+
+                if ptxcb.XROOT.button_pressed():
+                    STATE.moving = True
+
+            changes = STATE.update_window_position(
+                win,
+                self._event_data['x'],
+                self._event_data['y'],
+                self._event_data['width'],
+                self._event_data['height']
+            )
+
+            if changes:
+                Tile.sc_workspace_or_monitor(
+                    win.id,
+                    changes['old']['wsid'],
+                    changes['old']['mid'],
+                    changes['new']['wsid'],
+                    changes['new']['mid']
+                )
+
 
     def PropertyNotifyEvent(self):
         a = self._event_data['atom']
@@ -51,34 +77,16 @@ class Dispatcher(object):
         if a in ['_NET_WM_USER_TIME', '_NET_WM_ICON_GEOMETRY']:
             return
 
-        #~ print '-' * 30
-        #~ print 'PropertyNotify'
-        #~ print 'Window:', self._event_data['window'].get_visible_name()
-        #~ print 'Atom:', self._event_data['atom']
-        #~ print 'New Value:', self._event_data['window'].get_property(self._event_data['atom'])
-        #~ print '-' * 30
-
         if a == '_NET_ACTIVE_WINDOW':
             STATE.refresh_active()
         elif a == '_NET_CLIENT_LIST':
             old = ptxcb.XROOT.windows
             new = ptxcb.XROOT.get_window_ids()
 
-            for wid in new.difference(old):
-                win = Window.add(wid)
-                if win and win.monitor.workspace.id in Tile.TILING and win.monitor.id in Tile.TILING[win.monitor.workspace.id]:
-                    Tile.TILING[win.monitor.workspace.id][win.monitor.id].add(wid)
+            if old != new:
+                added, removed = STATE.handle_window_add_or_remove(old, new)
 
-            for wid in old.difference(new):
-                win = Window.lookup(wid)
-                if win:
-                    Tile.TILING[win.monitor.workspace.id][win.monitor.id].remove(wid)
-
-            # Without this, things get screwy...
-            # We don't want to use this... investigate!
-            STATE.refresh()
-
-            #print 'Deleted windows: %s' % old.difference(new)
+                Tile.sc_windows(added, removed)
 
     # Don't register new windows this way... Use _NET_CLIENT_LIST instead
     # You did it the first time for good reason!
@@ -93,17 +101,18 @@ class Dispatcher(object):
     # http://xcb.freedesktop.org/manual/group__XCB____API.html#g4d0136b27bbab9642aa65d2a3edbc03c
 
     def FocusInEvent(self):
-        print '-' * 30
-        print 'FocusIn'
-        print 'Window:', self._event_data['window'].get_visible_name()
-        print 'Detail:', self._event_data['detail']
-        print 'Mode:', self._event_data['mode']
-        print '-' * 30
+        if self._event_data['mode'] == 'Ungrab':
+            STATE.pointer_grab = False
+
+            if STATE.moving:
+                win = Window.lookup(self._event_data['window'].wid)
+
+                tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
+                if tiler:
+                    tiler.needs_tiling()
+
+                STATE.moving = False
 
     def FocusOutEvent(self):
-        print '-' * 30
-        print 'FocusOut'
-        print 'Window:', self._event_data['window'].get_visible_name()
-        print 'Detail:', self._event_data['detail']
-        print 'Mode:', self._event_data['mode']
-        print '-' * 30
+        if self._event_data['mode'] == 'Grab':
+            STATE.pointer_grab = True

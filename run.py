@@ -9,10 +9,11 @@ from pytyle.window import Window
 from pytyle.dispatcher import Dispatcher
 
 cmds = {
-    'Alt-Shift-Return': 'list-windows-by-id',
-    'Alt-Z': 'list-windows-by-name',
+    'Alt-Return': 'make_active_master',
     'Ctrl-C': 'quit',
     'Alt-A': 'tile',
+    'Alt-U': 'untile',
+    'Alt-D': 'debug',
 }
 
 Command.init(cmds)
@@ -34,10 +35,6 @@ while True:
         continue
 
     d = Dispatcher(event_data)
-
-    ptxcb.XCONN.push()
-
-    ptxcb.Window.exec_queue()
 
     if d.stop():
         break
