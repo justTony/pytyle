@@ -1,5 +1,6 @@
 from workspace import Workspace
 from monitor import Monitor
+from container import Container
 from window import Window
 from state import STATE
 from autostore import AutoStore
@@ -12,6 +13,7 @@ class Tile(object):
         self.workspace = Workspace.WORKSPACES[wsid]
         self.monitor = Monitor.MONITORS[wsid][mid]
         self.tiling = False
+        self.active = None
 
     def tile(self):
         self.tiling = True
@@ -36,7 +38,9 @@ class Tile(object):
         t = Tile.TILING[wsid][mid]
 
         if hasattr(t, command):
-            if t.tiling or command == 'tile':
+            if command == 'tile':
+                t.needs_tiling()
+            elif t.tiling:
                 getattr(t, command)()
         else:
             raise Exception('Invalid command %s' % command)
@@ -50,10 +54,18 @@ class Tile(object):
         return None
 
     @staticmethod
-    def iter_tilers():
+    def iter_tilers(workspaces=None, monitors=None):
+        if isinstance(workspaces, int):
+            workspaces = [workspaces]
+
+        if isinstance(monitors, int):
+            monitors = [monitors]
+
         for wsid in Tile.TILING:
-            for mid in Tile.TILING[wsid]:
-                yield Tile.TILING[wsid][mid]
+            if workspaces is None or wsid in workspaces:
+                for mid in Tile.TILING[wsid]:
+                    if monitors is None or mid in monitors:
+                        yield Tile.TILING[wsid][mid]
 
     @staticmethod
     def exec_queue():
@@ -62,36 +74,33 @@ class Tile(object):
         Tile.queue = set()
 
     @staticmethod
-    def sc_workspace_or_monitor(wid, old_wsid, old_mid, new_wsid, new_mid):
+    def sc_workspace_or_monitor(win, old_wsid, old_mid, new_wsid, new_mid):
         old_tiler = Tile.lookup(old_wsid, old_mid)
         new_tiler = Tile.lookup(new_wsid, new_mid)
 
         if old_tiler:
-            old_tiler.remove(wid)
+            old_tiler.remove(win)
 
         if new_tiler:
-            new_tiler.add(wid)
+            new_tiler.add(win)
 
     @staticmethod
     def sc_windows(added, removed):
         for win in added:
             tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
             if tiler:
-                tiler.add(win.id)
+                tiler.add(win)
 
         for win in removed:
             tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
             if tiler:
-                tiler.remove(win.id)
+                tiler.remove(win)
 
 class AutoTile(Tile):
     def __init__(self, wsid, mid):
         Tile.__init__(self, wsid, mid)
-
-        self.store = AutoStore()
-
-        for win in STATE.iter_windows(self.workspace.id, self.monitor.id):
-            self.add(win.id)
+        self.store = None
+        self.cycle_index = 0
 
     def tile(self):
         Tile.tile(self)
@@ -99,29 +108,159 @@ class AutoTile(Tile):
         if not self.store:
             self.store = AutoStore()
 
+            active = STATE.get_active()
+
+            if active:
+                self.add(active)
+
             for win in STATE.iter_windows(self.workspace.id, self.monitor.id):
-                self.add(win.id)
+                if win != active:
+                    self.add(win)
 
     def untile(self):
         Tile.untile(self)
 
         if self.store:
-            for wid in self.store.all()[:]:
-                Window.lookup(wid).original_state()
-                self.store.remove(wid)
+            for cont in self.store.all()[:]:
+                cont.remove(reset_window=True)
 
             self.store = None
 
-    def add(self, wid):
-        self.store.add(wid)
-        self.needs_tiling()
+    def add(self, win):
+            cont = Container(win)
+            self.store.add(cont)
+            self.needs_tiling()
 
-    def remove(self, wid):
-        self.store.remove(wid)
-        self.needs_tiling()
+    def remove(self, win):
+        if win.container:
+            self.store.remove(win.container)
+            win.set_container(None)
+            self.needs_tiling()
 
     def make_active_master(self):
-        print 'Make active master'
+        if self.store.masters:
+            active = self.get_active()
+            master = self.store.masters[0]
+
+            if active != master:
+                master.switch(active)
+
+    def focus_master(self):
+        master = self.store.masters[0]
+        if master:
+            master.activate()
+
+    def get_active(self):
+        active = STATE.get_active()
+
+        if active.container:
+            return active.container
+
+        return None
+
+    def get_next(self):
+        active = self.get_active()
+
+        if active:
+            a = self.store.all()
+            return a[(a.index(active) + 1) % len(a)]
+
+        return None
+
+    def get_previous(self):
+        active = self.get_active()
+
+        if active:
+            a = self.store.all()
+            return a[a.index(active) - 1]
+
+        return None
+
+    def next(self):
+        next = self.get_next()
+
+        if next:
+            next.activate()
+
+    def previous(self):
+        previous = self.get_previous()
+
+        if previous:
+            previous.activate()
+
+    def switch_next(self):
+        active = self.get_active()
+        next = self.get_next()
+
+        if active and next:
+            active.switch(next)
+
+    def switch_previous(self):
+        active = self.get_active()
+        previous = self.get_previous()
+
+        if active and previous:
+            active.switch(previous)
+
+    def cycle(self):
+        if self.store.masters and self.store.slaves:
+            if self.cycle_index >= len(self.store.slaves):
+                self.cycle_index = 0
+
+            master = self.store.masters[0]
+            slave = self.store.slaves[self.cycle_index]
+
+            master.switch(slave)
+
+            self.cycle_index += 1
+
+    def increment_masters(self):
+        self.store.inc_masters()
+        self.needs_tiling()
+
+    def decrement_masters(self):
+        self.store.dec_masters()
+        self.needs_tiling()
+
+    def screen_focus(self, mid):
+        new_tiler = Tile.lookup(self.workspace.id, mid)
+
+        if self != new_tiler and new_tiler:
+            if new_tiler.store.masters:
+                new_tiler.store.masters[0].activate()
+            elif new_tiler.store.slaves:
+                new_tiler.store.slaves[0].activate()
+
+    def screen_put(self, mid):
+        active = self.get_active()
+        new_tiler = Tile.lookup(self.workspace.id, mid)
+
+        if new_tiler != self and active and new_tiler:
+            active.win.monitor = Monitor.MONITORS[self.workspace.id][mid]
+            self.remove(active.win)
+            new_tiler.add(active.win)
+        elif active and self.monitor.id != mid and mid in Monitor.MONITORS[self.workspace.id]:
+            mon = Monitor.MONITORS[self.workspace.id][mid]
+            active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)
+
+    def screen0_focus(self):
+        self.screen_focus(0)
+
+    def screen1_focus(self):
+        self.screen_focus(1)
+
+    def screen2_focus(self):
+        self.screen_focus(2)
+
+    def screen0_put(self):
+        self.screen_put(0)
+
+    def screen1_put(self):
+        self.screen_put(1)
+
+    def screen2_put(self):
+        self.screen_put(2)
+
 
 # We need two types of storage mechanisms for tiling windows...
 # Firstly, for *just* the auto tiling layouts, we need a tile store

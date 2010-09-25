@@ -144,6 +144,35 @@ class State(object):
         }
 
         if old != new:
+            if win.id in self._hierarchy[win.monitor.workspace.id][win.monitor.id]:
+                self._hierarchy[win.monitor.workspace.id][win.monitor.id].remove(win.id)
+            self._hierarchy[new_wsid][new_mid].add(win.id)
+            win.monitor = new_mon
+
+            return {
+                'old': old,
+                'new': new
+            }
+        else:
+            return None
+
+    def update_window_desktop(self, win):
+        win.load_geometry()
+
+        old = {
+            'wsid': win.monitor.workspace.id,
+            'mid': win.monitor.id
+        }
+
+        new_wsid = win.get_desktop_number()
+        new_mon = Monitor.lookup(new_wsid, win.x, win.y)
+        new_mid = new_mon.id
+        new = {
+            'wsid': new_wsid,
+            'mid': new_mid
+        }
+
+        if old != new:
             self._hierarchy[win.monitor.workspace.id][win.monitor.id].remove(win.id)
             self._hierarchy[new_wsid][new_mid].add(win.id)
             win.monitor = new_mon

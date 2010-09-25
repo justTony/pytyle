@@ -25,6 +25,8 @@ class Command:
                 self._mod_mask |= Command._mods[part]
             elif part.capitalize() in ptxcb.keysyms:
                 self._keycode = ptxcb.XCONN.get_keycode(ptxcb.keysyms[part.capitalize()])
+            elif part in ptxcb.keysyms:
+                self._keycode = ptxcb.XCONN.get_keycode(ptxcb.keysyms[part])
             else:
                 raise Exception('Bad command syntax')
 

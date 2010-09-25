@@ -9,7 +9,23 @@ from pytyle.window import Window
 from pytyle.dispatcher import Dispatcher
 
 cmds = {
+    'Alt-M': 'focus_master',
     'Alt-Return': 'make_active_master',
+    'Alt-H': 'decrease_master',
+    'Alt-L': 'increase_master',
+    'Alt-J': 'previous',
+    'Alt-K': 'next',
+    'Alt-Shift-J': 'switch_previous',
+    'Alt-Shift-K': 'switch_next',
+    'Alt-C': 'cycle',
+    'Alt-comma': 'decrement_masters',
+    'Alt-period': 'increment_masters',
+    'Alt-E': 'screen0_focus',
+    'Alt-W': 'screen1_focus',
+    'Alt-R': 'screen2_focus',
+    'Alt-Shift-E': 'screen0_put',
+    'Alt-Shift-W': 'screen1_put',
+    'Alt-Shift-R': 'screen2_put',
     'Ctrl-C': 'quit',
     'Alt-A': 'tile',
     'Alt-U': 'untile',

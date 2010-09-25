@@ -55,6 +55,10 @@ class Window(object):
         except:
             return False
 
+    def activate(self):
+        XCONN.get_core().SetInputFocus(0, self.wid, 0)
+        self.stack(True)
+
     def get_name(self):
         return self.get_property('_NET_WM_NAME')
 
@@ -221,24 +225,24 @@ class Window(object):
             rx, ry, rwidth, rheight = self.get_raw_geometry()
             px, py, pwidth, pheight = self.query_tree_parent().get_raw_geometry()
 
-            XCONN.get_core().ConfigureWindow(
-                self.wid,
-                xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
-                [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
-            )
-
-            # self.send_client_event(
-                # Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
-                # [
-                    # xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
-                    # x,
-                    # y,
-                    # width - (pwidth - rwidth),
-                    # height - (pheight - rheight)
-                # ],
-                # 32,
-                # xcb.xproto.EventMask.StructureNotify
+            # XCONN.get_core().ConfigureWindow(
+                # self.wid,
+                # xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
+                # [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
             # )
+
+            self.send_client_event(
+                Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
+                [
+                    xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
+                    x,
+                    y,
+                    width - (pwidth - rwidth),
+                    height - (pheight - rheight)
+                ],
+                32,
+                xcb.xproto.EventMask.StructureNotify
+            )
 
             XCONN.push()
         except:
@@ -495,7 +499,6 @@ class RootWindow(Window):
     def listen(self):
         self.set_event_masks(
             xcb.xproto.EventMask.SubstructureNotify |
-            xcb.xproto.EventMask.StructureNotify |
             xcb.xproto.EventMask.PropertyChange
         )
 
@@ -505,6 +508,12 @@ class RootWindow(Window):
             RootWindow._singleton = RootWindow()
 
         return RootWindow._singleton
+
+    def get_name(self):
+        return 'ROOT'
+
+    def get_visible_name(self):
+        return self.get_name()
 
     def get_supported_hints(self):
         return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_SUPPORTED')]

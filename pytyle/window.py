@@ -9,7 +9,7 @@ class Window(object):
     def __init__(self, wid):
         self.id = wid
         self._xwin = ptxcb.Window(wid)
-        self.tiling = False
+        self.container = None
         self.load()
 
     def __str__(self):
@@ -22,6 +22,34 @@ class Window(object):
         return '%s - [ID: %d, WORKSPACE: %d, MONITOR: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (
             padded_name, self.id, self.monitor.workspace.id, self.monitor.id, self.x, self.y, self.width, self.height
         )
+
+    def sanity_move_resize(self):
+        print '-' * 30
+
+        print self.name
+        print '-' * 15
+
+        x1, y1, w1, h1 = self._xwin.get_geometry()
+        print 'Originals'
+        print x1, y1, w1, h1
+        print '-' * 15
+
+        self._xwin._moveresize(x1, y1, w1, h1)
+        x2, y2, w2, h2 = self._xwin.get_geometry()
+
+        print 'After move/resize'
+        print x2, y2, w2, h2
+        print '-' * 15
+
+        if x1 == x2 and y1 == y2 and w1 == w2 and h1 == h2:
+            print 'EXCELLENT!'
+        else:
+            print 'Bad form...'
+
+        print '-' * 30, '\n'
+
+    def activate(self):
+        self._xwin.activate()
 
     def original_state(self):
         if self.omaximized:
@@ -40,12 +68,15 @@ class Window(object):
 
     def load(self):
         self.name = self._xwin.get_name()
-        self.x, self.y, self.width, self.height = self._xwin.get_geometry()
+        self.load_geometry()
         self.omaximized = self._xwin.maximized()
         self.monitor = Monitor.lookup(self.get_desktop_number(), self.x, self.y)
         self.floating = False
 
         self._xwin.listen()
+
+    def load_geometry(self):
+        self.x, self.y, self.width, self.height = self._xwin.get_geometry()
 
     def reload(self):
         self.load()
@@ -60,10 +91,10 @@ class Window(object):
     def get_desktop_number(self):
         return self._xwin.get_desktop_number()
 
-    def set_tiling(self, v):
-        self.tiling = v
+    def set_container(self, container):
+        self.container = container
 
-        if v:
+        if container:
             self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
             self.omaximized = self._xwin.maximized()
 

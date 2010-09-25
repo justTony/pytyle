@@ -45,7 +45,6 @@ class Dispatcher(object):
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
-        # Only continue if we can find a recognizable window
         if win and win.lives():
             if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
                 pointer = ptxcb.XROOT.query_pointer()
@@ -63,7 +62,7 @@ class Dispatcher(object):
 
             if changes:
                 Tile.sc_workspace_or_monitor(
-                    win.id,
+                    win,
                     changes['old']['wsid'],
                     changes['old']['mid'],
                     changes['new']['wsid'],
@@ -87,6 +86,19 @@ class Dispatcher(object):
                 added, removed = STATE.handle_window_add_or_remove(old, new)
 
                 Tile.sc_windows(added, removed)
+        elif a == '_NET_WM_DESKTOP':
+            win = Window.lookup(self._event_data['window'].wid)
+            if win and win.lives():
+                changes = STATE.update_window_desktop(win)
+
+                if changes:
+                    Tile.sc_workspace_or_monitor(
+                        win,
+                        changes['old']['wsid'],
+                        changes['old']['mid'],
+                        changes['new']['wsid'],
+                        changes['new']['mid']
+                    )
 
     # Don't register new windows this way... Use _NET_CLIENT_LIST instead
     # You did it the first time for good reason!
@@ -105,11 +117,13 @@ class Dispatcher(object):
             STATE.pointer_grab = False
 
             if STATE.moving:
-                win = Window.lookup(self._event_data['window'].wid)
+                pointer = ptxcb.XROOT.query_pointer()
+                win = Window.deep_lookup(pointer.child)
 
-                tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
-                if tiler:
-                    tiler.needs_tiling()
+                if win:
+                    for tiler in Tile.iter_tilers(win.monitor.workspace.id):
+                        if tiler:
+                            tiler.needs_tiling()
 
                 STATE.moving = False
 

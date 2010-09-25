@@ -1,3 +1,4 @@
+from container import Container
 from window import Window
 
 class AutoStore(object):
@@ -5,71 +6,79 @@ class AutoStore(object):
         self.masters = []
         self.slaves = []
         self.mcnt = 1
+        self.changes = False
 
-    def add(self, wid, top = False):
+    def made_changes(self):
+        if self.changes:
+            self.changes = False
+            return True
+        return False
+
+    def add(self, cont, top = False):
         if len(self.masters) < self.mcnt:
-            if wid in self.slaves:
-                self.slaves.remove(wid)
+            if cont in self.slaves:
+                self.slaves.remove(cont)
 
             if top:
-                self.masters.insert(0, wid)
+                self.masters.insert(0, cont)
             else:
-                self.masters.append(wid)
+                self.masters.append(cont)
 
-            Window.lookup(wid).set_tiling(True)
-        elif wid not in self.slaves:
+            self.changes = True
+        elif cont not in self.slaves:
             if top:
-                self.slaves.insert(0, wid)
+                self.slaves.insert(0, cont)
             else:
-                self.slaves.append(wid)
+                self.slaves.append(cont)
 
-            Window.lookup(wid).set_tiling(True)
+            self.changes = True
 
-    def remove(self, wid):
-        # Window might be gone by the time we get here...
-        win = Window.lookup(wid)
-
-        if wid in self.masters:
-            self.masters.remove(wid)
+    def remove(self, cont):
+        if cont in self.masters:
+            self.masters.remove(cont)
 
             if len(self.masters) < self.mcnt and self.slaves:
                 self.masters.append(self.slaves.pop(0))
 
-            if win:
-                win.set_tiling(False)
-        elif wid in self.slaves:
-            self.slaves.remove(wid)
+            self.changes = True
+        elif cont in self.slaves:
+            self.slaves.remove(cont)
 
-            if win:
-                win.set_tiling(False)
+            self.changes = True
 
-    def switch(self, wid1, wid2):
-        if wid1 in self.masters and wid2 in self.masters:
-            i1, i2 = self.masters.index(wid1), self.masters.index(wid2)
+    def switch(self, cont1, cont2):
+        if cont1 in self.masters and cont2 in self.masters:
+            i1, i2 = self.masters.index(cont1), self.masters.index(cont2)
             self.masters[i1], self.masters[i2] = self.masters[i2], self.masters[i1]
-        elif wid1 in self.slaves and wid2 in self.slaves:
-            i1, i2 = self.slaves.index(wid1), self.slaves.index(wid2)
+        elif cont1 in self.slaves and cont2 in self.slaves:
+            i1, i2 = self.slaves.index(cont1), self.slaves.index(cont2)
             self.slaves[i1], self.slaves[i2] = self.slaves[i2], self.slaves[i1]
-        elif wid1 in self.masters: # and wid2 in self.slaves
-            i1, i2 = self.masters.index(wid1), self.slaves.index(wid2)
+        elif cont1 in self.masters: # and cont2 in self.slaves
+            i1, i2 = self.masters.index(cont1), self.slaves.index(cont2)
             self.masters[i1], self.slaves[i2] = self.slaves[i2], self.masters[i1]
-        else: # wid1 in self.slaves and wid2 in self.masters
-            i1, i2 = self.slaves.index(wid1), self.masters.index(wid2)
+        else: # cont1 in self.slaves and cont2 in self.masters
+            i1, i2 = self.slaves.index(cont1), self.masters.index(cont2)
             self.slaves[i1], self.masters[i2] = self.masters[i2], self.slaves[i1]
 
     def inc_masters(self):
         self.mcnt += 1
+
+        if len(self.masters) < self.mcnt and self.slaves:
+            self.masters.append(self.slaves.pop(0))
 
     def dec_masters(self):
         if self.mcnt <= 0:
             return
         self.mcnt -= 1
 
+        if len(self.masters) > self.mcnt:
+            self.slaves.append(self.masters.pop())
+
     def all(self):
         return self.masters + self.slaves
 
     def __str__(self):
-        r = 'Masters: %s\n' % [Window.lookup(wid).name for wid in self.masters]
-        r += 'Slaves: %s\n' % [Window.lookup(wid).name for wid in self.slaves]
+        r = 'Masters: %s\n' % [cont.get_name() for cont in self.masters]
+        r += 'Slaves: %s\n' % [cont.get_name() for cont in self.slaves]
 
         return r

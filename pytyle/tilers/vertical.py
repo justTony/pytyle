@@ -1,10 +1,13 @@
 from pytyle.tile import AutoTile
 from pytyle.autostore import AutoStore
+from pytyle.container import Container
 from pytyle.window import Window
 
 class Vertical(AutoTile):
     def __init__(self, wsid, mid):
         AutoTile.__init__(self, wsid, mid)
+
+        self.hsplit = 0.5
 
     def tile(self):
         AutoTile.tile(self)
@@ -14,11 +17,14 @@ class Vertical(AutoTile):
         m_size = len(self.store.masters)
         s_size = len(self.store.slaves)
 
-        m_width = self.monitor.wa_width / 2
+        m_width = int(self.monitor.wa_width * self.hsplit)
         s_width = self.monitor.wa_width - m_width
 
         m_x = self.monitor.wa_x
         s_x = m_x + m_width
+
+        if m_width <= 0 or m_width > self.monitor.wa_width or s_width <= 0 or s_width > self.monitor.wa_width:
+            return
 
         if m_size:
             m_height = self.monitor.wa_height / m_size
@@ -26,8 +32,8 @@ class Vertical(AutoTile):
             if not s_size:
                 m_width = self.monitor.wa_width
 
-            for i, wid in enumerate(self.store.masters):
-                Window.lookup(wid).moveresize(
+            for i, cont in enumerate(self.store.masters):
+                cont.moveresize(
                     m_x,
                     i * m_height,
                     m_width,
@@ -39,11 +45,20 @@ class Vertical(AutoTile):
 
             if not m_size:
                 s_width = self.monitor.wa_width
+                s_x = self.monitor.wa_x
 
-            for i, wid in enumerate(self.store.slaves):
-                Window.lookup(wid).moveresize(
+            for i, cont in enumerate(self.store.slaves):
+                cont.moveresize(
                     s_x,
                     i * s_height,
                     s_width,
                     s_height
                 )
+
+    def increase_master(self, inc = 0.05):
+        self.hsplit += inc
+        self.needs_tiling()
+
+    def decrease_master(self, dec = 0.05):
+        self.hsplit -= dec
+        self.needs_tiling()
