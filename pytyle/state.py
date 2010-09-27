@@ -28,6 +28,11 @@ class State(object):
     def refresh_active(self):
         self.set_active(ptxcb.XROOT.get_active_window())
 
+        active = STATE.get_active()
+
+        if active:
+            active.monitor.active = active
+
     def set_active(self, wid):
         if wid in Window.WINDOWS:
             self._ACTIVE = Window.WINDOWS[wid]
@@ -63,16 +68,17 @@ class State(object):
         if isinstance(monitors, int):
             monitors = [monitors]
 
-        for wsid in self._hierarchy:
+        for wsid in Workspace.WORKSPACES:
             if workspaces is None or wsid in workspaces:
                 print Workspace.WORKSPACES[wsid]
 
-                for mid in self._hierarchy[wsid]:
-                    if monitors is None or mid in monitors:
-                        print '\t%s' % Monitor.MONITORS[wsid][mid]
+                mons = Workspace.WORKSPACES[wsid].monitors
+                for mon in mons:
+                    if monitors is None or mon.id in monitors:
+                        print '\t%s' % mon
 
-                        for wid in self._hierarchy[wsid][mid]:
-                            print '\t\t%s' % Window.WINDOWS[wid]
+                        for win in mon.windows:
+                            print '\t\t%s' % win
 
     def iter_windows(self, workspaces=None, monitors=None):
         if isinstance(workspaces, int):
@@ -81,51 +87,31 @@ class State(object):
         if isinstance(monitors, int):
             monitors = [monitors]
 
-        for wsid in self._hierarchy:
+        for wsid in Workspace.WORKSPACES:
             if workspaces is None or wsid in workspaces:
-                for mid in self._hierarchy[wsid]:
-                    if monitors is None or mid in monitors:
-                        for wid in self._hierarchy[wsid][mid]:
-                            yield Window.WINDOWS[wid]
+                mons = Workspace.WORKSPACES[wsid].monitors
+                for mon in mons:
+                    if monitors is None or mon.id in monitors:
+                        for win in mon.windows:
+                            yield win
 
     def handle_window_add_or_remove(self, old, new):
         added = []
         removed = []
 
         for wid in new.difference(old):
-            win = STATE.add_window(wid)
+            win = Window.add_window(wid)
 
             if win:
                 added.append(win)
 
         for wid in old.difference(new):
-            win = STATE.remove_window(wid)
+            win = Window.remove_window(wid)
 
             if win:
                 removed.append(win)
 
         return added, removed
-
-    def add_window(self, wid):
-        if wid not in Window.WINDOWS:
-            win = Window(wid)
-
-            if win.is_manageable():
-                Window.WINDOWS[wid] = win
-                self._hierarchy[win.monitor.workspace.id][win.monitor.id].add(wid)
-
-                return win
-        return None
-
-    def remove_window(self, wid):
-        win = Window.lookup(wid)
-
-        if win:
-            del Window.WINDOWS[wid]
-            self._hierarchy[win.monitor.workspace.id][win.monitor.id].remove(wid)
-
-            return win
-        return None
 
     def update_window_position(self, win, x, y, width, height):
         win.x, win.y, win.width, win.height = x, y, width, height
@@ -135,7 +121,7 @@ class State(object):
             'mid': win.monitor.id
         }
 
-        new_wsid = win.get_desktop_number()
+        new_wsid = win.properties['_NET_WM_DESKTOP']
         new_mon = Monitor.lookup(new_wsid, x, y)
         new_mid = new_mon.id
         new = {
@@ -164,7 +150,7 @@ class State(object):
             'mid': win.monitor.id
         }
 
-        new_wsid = win.get_desktop_number()
+        new_wsid = win.properties['_NET_WM_DESKTOP']
         new_mon = Monitor.lookup(new_wsid, win.x, win.y)
         new_mid = new_mon.id
         new = {
@@ -189,18 +175,17 @@ class State(object):
         Workspace.refresh()
         Monitor.refresh()
         Window.refresh()
-        self.refresh_hierarchy()
         self.refresh_active()
 
-    def refresh_hierarchy(self):
-        for wsid in Workspace.WORKSPACES:
-            self._hierarchy[wsid] = {}
-
-            for mid in Monitor.MONITORS[wsid]:
-                self._hierarchy[wsid][mid] = set()
-
-        for wid in Window.WINDOWS:
-            win = Window.WINDOWS[wid]
-            self._hierarchy[win.monitor.workspace.id][win.monitor.id].add(wid)
+    # def refresh_hierarchy(self):
+        # for wsid in Workspace.WORKSPACES:
+            # self._hierarchy[wsid] = {}
+#
+            # for mid in Monitor.MONITORS[wsid]:
+                # self._hierarchy[wsid][mid] = set()
+#
+        # for wid in Window.WINDOWS:
+            # win = Window.WINDOWS[wid]
+            # self._hierarchy[win.monitor.workspace.id][win.monitor.id].add(wid)
 
 STATE = State.get_state()

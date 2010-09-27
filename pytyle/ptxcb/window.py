@@ -74,13 +74,13 @@ class Window(object):
         return ret
 
     def get_types(self):
-        return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_WINDOW_TYPE')]
+        return set([Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_WINDOW_TYPE')])
 
     def get_states(self):
-        return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_STATE')]
+        return set([Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_STATE')])
 
     def get_allowed_actions(self):
-        return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_ALLOWED_ACTIONS')]
+        return set([Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_ALLOWED_ACTIONS')])
 
     def get_strut(self):
         raw = self.get_property('_NET_WM_STRUT')
@@ -116,22 +116,18 @@ class Window(object):
     def get_frame_extents(self):
         raw = self.get_property('_NET_FRAME_EXTENTS')
 
-        return {
-            'left': raw[0],
-            'right': raw[1],
-            'top': raw[2],
-            'bottom': raw[3]
-        }
-
-    def maximized(self):
-        raw = self.get_property('_NET_WM_STATE')
-
-        vatom = Atom.get_atom('_NET_WM_STATE_MAXIMIZED_VERT')
-        hatom = Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
-
-        if vatom in raw and hatom in raw:
-            return True
-        return False
+        if raw:
+            return {
+                'left': raw[0],
+                'right': raw[1],
+                'top': raw[2],
+                'bottom': raw[3]
+            }
+        else:
+            return {
+                'left': 0, 'right': 0,
+                'top': 0, 'bottom': 0
+            }
 
     def maximize(self):
         self.send_client_event(
@@ -225,10 +221,18 @@ class Window(object):
             rx, ry, rwidth, rheight = self.get_raw_geometry()
             px, py, pwidth, pheight = self.query_tree_parent().get_raw_geometry()
 
+            w = width - (pwidth - rwidth)
+            h = height - (pheight - rheight)
+
+            x = 0 if x < 0 else x
+            y = 0 if y < 0 else y
+            w = 1 if w <= 0 else w
+            h = 1 if h <= 0 else h
+
             # XCONN.get_core().ConfigureWindow(
                 # self.wid,
                 # xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
-                # [x, y, width - (pwidth - rwidth), height - (pheight - rheight)]
+                # [x, y, w, h]
             # )
 
             self.send_client_event(
@@ -237,8 +241,8 @@ class Window(object):
                     xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
                     x,
                     y,
-                    width - (pwidth - rwidth),
-                    height - (pheight - rheight)
+                    w,
+                    h
                 ],
                 32,
                 xcb.xproto.EventMask.StructureNotify

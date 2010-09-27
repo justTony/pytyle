@@ -2,8 +2,9 @@ class Container(object):
     CONTAINERS = {}
     idinc = 1
 
-    def __init__(self, win):
+    def __init__(self, tiler, win):
         self.win = win
+        self.tiler = tiler
         self.id = Container.idinc
         self.x, self.y, self.w, self.h = -1, -1, -1, -1
 
@@ -45,6 +46,16 @@ class Container(object):
     def remove(self, reset_window=False):
         self.detach(reset_window)
         del Container.CONTAINERS[self.id]
+
+    def __str__(self):
+        ret = 'Container #%d' % self.id
+
+        if self.win:
+            ret += '\n\t' + str(self.win)
+        else:
+            ret += ' - Empty'
+
+        return ret
 
     @staticmethod
     def lookup(cid):

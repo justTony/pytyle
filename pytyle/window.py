@@ -10,7 +10,157 @@ class Window(object):
         self.id = wid
         self._xwin = ptxcb.Window(wid)
         self.container = None
+        self.monitor = None
+        self.floating = False
+        self.properties = {
+            '_NET_WM_NAME': '',
+            '_NET_WM_DESKTOP': '',
+            '_NET_WM_WINDOW_TYPE': set(),
+            '_NET_WM_STATE': set(),
+            '_NET_WM_ALLOWED_ACTIONS': set(),
+            '_NET_FRAME_EXTENTS': {
+                'top': 0, 'left': 0, 'right': 0, 'bottom': 0
+            }
+        }
+
         self.load()
+
+    def update_monitor(self):
+        new_mon = Monitor.lookup(self.properties['_NET_WM_DESKTOP'], self.x, self.y)
+
+        if new_mon:
+            self.set_monitor(new_mon.workspace.id, new_mon.id)
+
+    def set_monitor(self, wsid, mid):
+        new_mon = Monitor.MONITORS[wsid][mid]
+
+        if new_mon != self.monitor:
+            if self.monitor and self in self.monitor.windows:
+                self.monitor.remove_window(self)
+
+            self.monitor = new_mon
+            self.monitor.add_window(self)
+
+    def update_property(self, pname):
+        if pname in self.properties:
+            if pname == '_NET_WM_NAME':
+                self.name = self._xwin.get_name()
+                self.properties[pname] = self.name
+            elif pname == '_NET_FRAME_EXTENTS':
+                if self.container:
+                    self.container.fit_window()
+
+                self.properties[pname] = self._xwin.get_frame_extents()
+            # This makes the window tile FIRST...
+            elif pname == '_NET_WM_DESKTOP':
+                self.properties[pname] = self._xwin.get_desktop_number()
+
+                self.load_geometry()
+                self.update_monitor()
+            elif pname == '_NET_WM_WINDOW_TYPE':
+                self.properties[pname] = self._xwin.get_types()
+            elif pname == '_NET_WM_STATE':
+                old = self.properties[pname]
+                new = self._xwin.get_states()
+
+                removed = old - new
+                added = new - old
+
+                if self.container and ('_OB_WM_STATE_UNDECORATED' in removed or '_OB_WM_STATE_UNDECORATED' in added):
+                    self.container.fit_window()
+
+                self.properties[pname] = new
+            elif pname == '_NET_WM_ALLOWED_ACTIONS':
+                self.properties[pname] = self._xwin.get_allowed_actions()
+
+    def load_properties(self):
+        for pname in self.properties:
+            self.update_property(pname)
+
+    def get_property(self, pname):
+        assert pname in self.properties
+
+        return self.properties[pname]
+
+    def activate(self):
+        self._xwin.activate()
+
+    def original_state(self):
+        if self.omaximized:
+            self.maximize()
+        else:
+            self._xwin.moveresize(self.ox, self.oy, self.owidth, self.oheight)
+
+    def maximize(self):
+        self._xwin.maximize()
+
+    def maximized(self):
+        states = self.properties['_NET_WM_STATE']
+
+        if '_NET_WM_STATE_MAXIMIZED_VERT' in states and '_NET_WM_STATE_MAXIMIZED_HORZ' in states:
+            return True
+        return False
+
+    def moveresize(self, x, y, width, height):
+        self.x, self.y, self.width, self.height = x, y, width, height
+
+        self._xwin.restore()
+        self._xwin.moveresize(x, y, width, height)
+
+    def load(self):
+        self.load_geometry()
+        self.load_properties()
+        self.update_monitor()
+
+        self._xwin.listen()
+
+    def load_geometry(self):
+        self.x, self.y, self.width, self.height = self._xwin.get_geometry()
+
+    def reload(self):
+        self.load()
+
+    def lives(self):
+        try:
+            self._xwin.get_desktop_number()
+            return True
+        except:
+            return False
+
+    def set_geometry(self, x, y, w, h):
+        self.x, self.y, self.width, self.height = x, y, w, h
+
+        self.update_monitor()
+
+    def set_container(self, container):
+        self.container = container
+
+        if container:
+            self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
+            self.omaximized = self.maximized()
+
+    def tilable(self):
+        if self.floating:
+            return False
+
+        states = self.properties['_NET_WM_STATE']
+        if '_NET_WM_STATE_HIDDEN' in states:
+            return False
+
+        return True
+
+    def is_manageable(self):
+        win_types = self.properties['_NET_WM_WINDOW_TYPE']
+        if not win_types or '_NET_WM_WINDOW_TYPE_NORMAL' in win_types:
+            states = self.properties['_NET_WM_STATE']
+
+            if ('_NET_WM_STATE_MODAL' not in states and
+                '_NET_WM_STATE_SHADED' not in states and
+                '_NET_WM_STATE_SKIP_TASKBAR' not in states and
+                '_NET_WM_STATE_SKIP_PAGER' not in states and
+                '_NET_WM_STATE_FULLSCREEN' not in states):
+                return True
+        return False
 
     def __str__(self):
         length = 30
@@ -44,83 +194,9 @@ class Window(object):
         if x1 == x2 and y1 == y2 and w1 == w2 and h1 == h2:
             print 'EXCELLENT!'
         else:
-            print 'Bad form...'
+            print 'Bad form Peter...'
 
         print '-' * 30, '\n'
-
-    def activate(self):
-        self._xwin.activate()
-
-    def original_state(self):
-        if self.omaximized:
-            self.maximize()
-        else:
-            self._xwin.moveresize(self.ox, self.oy, self.owidth, self.oheight)
-
-    def maximize(self):
-        self._xwin.maximize()
-
-    def moveresize(self, x, y, width, height):
-        self.x, self.y, self.width, self.height = x, y, width, height
-
-        self._xwin.restore()
-        self._xwin.moveresize(x, y, width, height)
-
-    def load(self):
-        self.name = self._xwin.get_name()
-        self.load_geometry()
-        self.omaximized = self._xwin.maximized()
-        self.monitor = Monitor.lookup(self.get_desktop_number(), self.x, self.y)
-        self.floating = False
-
-        self._xwin.listen()
-
-    def load_geometry(self):
-        self.x, self.y, self.width, self.height = self._xwin.get_geometry()
-
-    def reload(self):
-        self.load()
-
-    def lives(self):
-        try:
-            self.get_desktop_number()
-            return True
-        except:
-            return False
-
-    def get_desktop_number(self):
-        return self._xwin.get_desktop_number()
-
-    def set_container(self, container):
-        self.container = container
-
-        if container:
-            self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
-            self.omaximized = self._xwin.maximized()
-
-    def tilable(self):
-        if self.floating:
-            return False
-
-        states = self._xwin.get_states()
-        if '_NET_WM_STATE_HIDDEN' in states:
-            return False
-
-        return True
-
-    def is_manageable(self):
-        win_types = self._xwin.get_types()
-        if not win_types or '_NET_WM_WINDOW_TYPE_NORMAL' in win_types:
-            states = self._xwin.get_states()
-
-            if ('_NET_WM_STATE_MODAL' not in states and
-                '_NET_WM_STATE_SHADED' not in states and
-                '_NET_WM_STATE_SKIP_TASKBAR' not in states and
-                '_NET_WM_STATE_SKIP_PAGER' not in states and
-                # '_NET_WM_STATE_HIDDEN' not in states and # This omits iconified windows...
-                '_NET_WM_STATE_FULLSCREEN' not in states):
-                return True
-        return False
 
     @staticmethod
     def lookup(wid):
@@ -151,17 +227,32 @@ class Window(object):
         wids = ptxcb.XROOT.get_window_ids()
 
         for wid in wids:
-            if wid not in Window.WINDOWS:
-                win = Window(wid)
-
-                if win.is_manageable():
-                    Window.WINDOWS[wid] = win
-            else:
-                Window.WINDOWS[wid].reload()
+            Window.add_window(wid)
 
         for wid in Window.WINDOWS.keys():
             if wid not in wids:
-                #Window.WINDOWS[wid].remove()
-                del Window.WINDOWS[wid]
+                Window.remove_window(wid)
 
         ptxcb.XCONN.push()
+
+    @staticmethod
+    def add_window(wid):
+        if wid not in Window.WINDOWS:
+            win = Window(wid)
+
+            if win.is_manageable():
+                Window.WINDOWS[wid] = win
+
+                return win
+        return None
+
+    @staticmethod
+    def remove_window(wid):
+        win = Window.lookup(wid)
+
+        if win:
+            del Window.WINDOWS[wid]
+            win.monitor.remove_window(win)
+
+            return win
+        return None

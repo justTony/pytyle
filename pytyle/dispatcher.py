@@ -45,60 +45,53 @@ class Dispatcher(object):
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
-        if win and win.lives():
-            if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
-                pointer = ptxcb.XROOT.query_pointer()
-
-                if ptxcb.XROOT.button_pressed():
-                    STATE.moving = True
-
-            changes = STATE.update_window_position(
-                win,
-                self._event_data['x'],
-                self._event_data['y'],
-                self._event_data['width'],
-                self._event_data['height']
-            )
-
-            if changes:
-                Tile.sc_workspace_or_monitor(
-                    win,
-                    changes['old']['wsid'],
-                    changes['old']['mid'],
-                    changes['new']['wsid'],
-                    changes['new']['mid']
-                )
-
+        # if win and win.lives():
+            # if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
+                # pointer = ptxcb.XROOT.query_pointer()
+#
+                # if ptxcb.XROOT.button_pressed():
+                    # STATE.moving = True
+#
+            # win.set_geometry(
+                # self._event_data['x'],
+                # self._event_data['y'],
+                # self._event_data['width'],
+                # self._event_data['height']
+            # )
 
     def PropertyNotifyEvent(self):
         a = self._event_data['atom']
 
-        if a in ['_NET_WM_USER_TIME', '_NET_WM_ICON_GEOMETRY']:
-            return
-
         if a == '_NET_ACTIVE_WINDOW':
             STATE.refresh_active()
         elif a == '_NET_CLIENT_LIST':
+            time.sleep(1)
             old = ptxcb.XROOT.windows
             new = ptxcb.XROOT.get_window_ids()
 
             if old != new:
                 added, removed = STATE.handle_window_add_or_remove(old, new)
 
-                Tile.sc_windows(added, removed)
-        elif a == '_NET_WM_DESKTOP':
+                # Tile.sc_windows(added, removed)
+        elif a == '_NET_WM_STATE':
             win = Window.lookup(self._event_data['window'].wid)
-            if win and win.lives():
-                changes = STATE.update_window_desktop(win)
 
-                if changes:
-                    Tile.sc_workspace_or_monitor(
-                        win,
-                        changes['old']['wsid'],
-                        changes['old']['mid'],
-                        changes['new']['wsid'],
-                        changes['new']['mid']
-                    )
+            if win and win.lives():
+                win.update_property('_NET_WM_STATE')
+                tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
+
+                if tiler:
+                    if win.tilable() and not win.container:
+                        time.sleep(0.2)
+                        tiler.add(win)
+                    elif not win.tilable() and win.container:
+                        time.sleep(0.2)
+                        tiler.remove(win)
+        else:
+            win = Window.lookup(self._event_data['window'].wid)
+
+            if win and win.lives():
+                win.update_property(a)
 
     # Don't register new windows this way... Use _NET_CLIENT_LIST instead
     # You did it the first time for good reason!

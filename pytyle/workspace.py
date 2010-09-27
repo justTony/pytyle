@@ -12,6 +12,8 @@ class Workspace(object):
         self.total_width = total_width
         self.total_height = total_height
 
+        self.monitors = set()
+
     def __str__(self):
         return 'Workspace %d - [X: %d, Y: %d, Width: %d, Height: %d]' % (
             self.id, self.x, self.y, self.width, self.height

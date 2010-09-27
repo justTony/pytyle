@@ -6,6 +6,8 @@ class Monitor(object):
 
     def __init__(self, workspace, mid, x, y, width, height):
         self.workspace = workspace
+        self.workspace.monitors.add(self)
+
         self.id = mid
         self.x = x
         self.y = y
@@ -19,10 +21,38 @@ class Monitor(object):
 
         self._calculate_workarea()
 
-    def __str__(self):
-        return 'Monitor %d - [WORKSPACE: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (
-            self.id, self.workspace.id, self.x, self.y, self.width, self.height
-        )
+        self.windows = set()
+        self.tiler = None
+        self.active = None
+
+    def get_active(self):
+        if not self.active:
+            if self.windows:
+                self.active = [w for w in self.windows][0]
+
+        return self.active
+
+    def add_window(self, win):
+        self.windows.add(win)
+
+        if win.id == ptxcb.XROOT.get_active_window():
+            self.active = win
+
+        if self.tiler:
+            self.tiler.add(win)
+
+    def remove_window(self, win):
+        if win in self.windows:
+            self.windows.remove(win)
+
+        if self.active == win:
+            if self.windows:
+                self.active = [w for w in self.windows][0]
+            else:
+                self.active = None
+
+        if self.tiler:
+            self.tiler.remove(win)
 
     def contains(self, x, y):
         if x >= self.x and y >= self.y and x < (self.x + self.width) and y < (self.y + self.height):
@@ -56,6 +86,11 @@ class Monitor(object):
                         if struts['top']:
                             self.wa_y -= h
                         self.wa_height -= h
+
+    def __str__(self):
+        return 'Monitor %d - [WORKSPACE: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (
+            self.id, self.workspace.id, self.x, self.y, self.width, self.height
+        )
 
     @staticmethod
     def lookup(wsid, x, y):

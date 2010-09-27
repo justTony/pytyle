@@ -12,8 +12,8 @@ class Tile(object):
     def __init__(self, wsid, mid):
         self.workspace = Workspace.WORKSPACES[wsid]
         self.monitor = Monitor.MONITORS[wsid][mid]
+        self.monitor.tiler = self
         self.tiling = False
-        self.active = None
 
     def tile(self):
         self.tiling = True
@@ -21,8 +21,9 @@ class Tile(object):
     def untile(self):
         self.tiling = False
 
-    def needs_tiling(self):
-        Tile.queue.add(self)
+    def needs_tiling(self, override=False):
+        if self.tiling or override:
+            Tile.queue.add(self)
 
     @staticmethod
     def dispatch(tiler, command):
@@ -39,7 +40,7 @@ class Tile(object):
 
         if hasattr(t, command):
             if command == 'tile':
-                t.needs_tiling()
+                t.needs_tiling(override=True)
             elif t.tiling:
                 getattr(t, command)()
         else:
@@ -72,17 +73,6 @@ class Tile(object):
         for tiler in Tile.queue:
             tiler.tile()
         Tile.queue = set()
-
-    @staticmethod
-    def sc_workspace_or_monitor(win, old_wsid, old_mid, new_wsid, new_mid):
-        old_tiler = Tile.lookup(old_wsid, old_mid)
-        new_tiler = Tile.lookup(new_wsid, new_mid)
-
-        if old_tiler:
-            old_tiler.remove(win)
-
-        if new_tiler:
-            new_tiler.add(win)
 
     @staticmethod
     def sc_windows(added, removed):
@@ -127,34 +117,25 @@ class AutoTile(Tile):
             self.store = None
 
     def add(self, win):
-            cont = Container(win)
+        if win.tilable() and self.tiling:
+            cont = Container(self, win)
             self.store.add(cont)
             self.needs_tiling()
 
-    def remove(self, win):
-        if win.container:
+    def remove(self, win, reset_window=False):
+        if win.container and self.tiling:
             self.store.remove(win.container)
-            win.set_container(None)
+            win.container.remove(reset_window=reset_window)
             self.needs_tiling()
 
-    def make_active_master(self):
-        if self.store.masters:
-            active = self.get_active()
-            master = self.store.masters[0]
-
-            if active != master:
-                master.switch(active)
-
-    def focus_master(self):
-        master = self.store.masters[0]
-        if master:
-            master.activate()
-
     def get_active(self):
-        active = STATE.get_active()
+        active = self.monitor.get_active()
 
-        if active.container:
-            return active.container
+        if active:
+            if active.container and active.container in self.store.all():
+                return active.container
+            else:
+                return self.store.all()[0]
 
         return None
 
@@ -175,6 +156,30 @@ class AutoTile(Tile):
             return a[a.index(active) - 1]
 
         return None
+
+    def float(self):
+        active = STATE.get_active()
+
+        if active and active.monitor.workspace.id == self.workspace.id and active.monitor.id == self.monitor.id:
+            if not active.floating:
+                active.floating = True
+                self.remove(active, reset_window=True)
+            else:
+                active.floating = False
+                self.add(active)
+
+    def make_active_master(self):
+        if self.store.masters:
+            active = self.get_active()
+            master = self.store.masters[0]
+
+            if active != master:
+                master.switch(active)
+
+    def focus_master(self):
+        master = self.store.masters[0]
+        if master:
+            master.activate()
 
     def next(self):
         next = self.get_next()
@@ -226,7 +231,11 @@ class AutoTile(Tile):
         new_tiler = Tile.lookup(self.workspace.id, mid)
 
         if self != new_tiler and new_tiler:
-            if new_tiler.store.masters:
+            active = new_tiler.get_active()
+
+            if active:
+                active.activate()
+            elif new_tiler.store.masters:
                 new_tiler.store.masters[0].activate()
             elif new_tiler.store.slaves:
                 new_tiler.store.slaves[0].activate()
@@ -236,9 +245,7 @@ class AutoTile(Tile):
         new_tiler = Tile.lookup(self.workspace.id, mid)
 
         if new_tiler != self and active and new_tiler:
-            active.win.monitor = Monitor.MONITORS[self.workspace.id][mid]
-            self.remove(active.win)
-            new_tiler.add(active.win)
+            active.win.set_monitor(self.workspace.id, mid)
         elif active and self.monitor.id != mid and mid in Monitor.MONITORS[self.workspace.id]:
             mon = Monitor.MONITORS[self.workspace.id][mid]
             active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)

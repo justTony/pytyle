@@ -26,6 +26,7 @@ cmds = {
     'Alt-Shift-E': 'screen0_put',
     'Alt-Shift-W': 'screen1_put',
     'Alt-Shift-R': 'screen2_put',
+    'Alt-F': 'float',
     'Ctrl-C': 'quit',
     'Alt-A': 'tile',
     'Alt-U': 'untile',
