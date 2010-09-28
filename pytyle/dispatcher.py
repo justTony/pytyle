@@ -45,19 +45,22 @@ class Dispatcher(object):
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
-        # if win and win.lives():
-            # if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
-                # pointer = ptxcb.XROOT.query_pointer()
-#
-                # if ptxcb.XROOT.button_pressed():
-                    # STATE.moving = True
-#
-            # win.set_geometry(
-                # self._event_data['x'],
-                # self._event_data['y'],
-                # self._event_data['width'],
-                # self._event_data['height']
-            # )
+        if win and win.lives():
+            if win.pytyle_moved:
+                win.pytyle_moved = False
+            else:
+                if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
+                    pointer = ptxcb.XROOT.query_pointer()
+
+                    if ptxcb.XROOT.button_pressed():
+                        STATE.moving = True
+
+                win.set_geometry(
+                    self._event_data['x'],
+                    self._event_data['y'],
+                    self._event_data['width'],
+                    self._event_data['height']
+                )
 
     def PropertyNotifyEvent(self):
         a = self._event_data['atom']
@@ -65,7 +68,6 @@ class Dispatcher(object):
         if a == '_NET_ACTIVE_WINDOW':
             STATE.refresh_active()
         elif a == '_NET_CLIENT_LIST':
-            time.sleep(1)
             old = ptxcb.XROOT.windows
             new = ptxcb.XROOT.get_window_ids()
 

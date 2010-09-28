@@ -12,6 +12,7 @@ class Window(object):
         self.container = None
         self.monitor = None
         self.floating = False
+        self.pytyle_moved = False
         self.properties = {
             '_NET_WM_NAME': '',
             '_NET_WM_DESKTOP': '',
@@ -103,6 +104,14 @@ class Window(object):
 
     def moveresize(self, x, y, width, height):
         self.x, self.y, self.width, self.height = x, y, width, height
+
+        # Don't do anything if the pointer is on the window...
+        if ptxcb.XROOT.button_pressed():
+            pointer = ptxcb.XROOT.query_pointer()
+            if self == Window.deep_lookup(pointer.child):
+                return
+
+        self.pytyle_moved = True
 
         self._xwin.restore()
         self._xwin.moveresize(x, y, width, height)

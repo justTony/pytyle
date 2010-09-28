@@ -249,6 +249,7 @@ class AutoTile(Tile):
         elif active and self.monitor.id != mid and mid in Monitor.MONITORS[self.workspace.id]:
             mon = Monitor.MONITORS[self.workspace.id][mid]
             active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)
+            active.win.set_monitor(self.workspace.id, mid)
 
     def screen0_focus(self):
         self.screen_focus(0)

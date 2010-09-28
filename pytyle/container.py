@@ -34,7 +34,9 @@ class Container(object):
         self.fit_window()
 
     def fit_window(self):
-        self.win.moveresize(self.x, self.y, self.w, self.h)
+        if (self.x != -1 and self.y != -1
+            and self.w != -1 and self.h != -1):
+            self.win.moveresize(self.x, self.y, self.w, self.h)
 
     def detach(self, reset_window=False):
         if reset_window:
