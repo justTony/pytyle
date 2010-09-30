@@ -73,39 +73,11 @@ class Dispatcher(object):
 
             if old != new:
                 added, removed = STATE.handle_window_add_or_remove(old, new)
-
-                # Tile.sc_windows(added, removed)
-        elif a == '_NET_WM_STATE':
-            win = Window.lookup(self._event_data['window'].wid)
-
-            if win and win.lives():
-                win.update_property('_NET_WM_STATE')
-                tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
-
-                if tiler:
-                    if win.tilable() and not win.container:
-                        time.sleep(0.2)
-                        tiler.add(win)
-                    elif not win.tilable() and win.container:
-                        time.sleep(0.2)
-                        tiler.remove(win)
         else:
             win = Window.lookup(self._event_data['window'].wid)
 
             if win and win.lives():
                 win.update_property(a)
-
-    # Don't register new windows this way... Use _NET_CLIENT_LIST instead
-    # You did it the first time for good reason!
-    def CreateNotifyEvent(self):
-        pass
-
-
-    # Use the following to track window movement..? Hmmm
-    # ConfigureNotify doesn't get reported when windows are moved (yes when resized)
-    # It is reported for the ROOT window, however there is no way to know
-    # which window is being moved... Check out XQueryTree!
-    # http://xcb.freedesktop.org/manual/group__XCB____API.html#g4d0136b27bbab9642aa65d2a3edbc03c
 
     def FocusInEvent(self):
         if self._event_data['mode'] == 'Ungrab':

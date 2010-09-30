@@ -1,3 +1,5 @@
+import time
+
 import ptxcb
 from monitor import Monitor
 
@@ -32,10 +34,10 @@ class Window(object):
         if new_mon:
             self.set_monitor(new_mon.workspace.id, new_mon.id)
 
-    def set_monitor(self, wsid, mid):
+    def set_monitor(self, wsid, mid, force=False):
         new_mon = Monitor.MONITORS[wsid][mid]
 
-        if new_mon != self.monitor:
+        if new_mon != self.monitor or force:
             if self.monitor and self in self.monitor.windows:
                 self.monitor.remove_window(self)
 
@@ -64,13 +66,20 @@ class Window(object):
                 old = self.properties[pname]
                 new = self._xwin.get_states()
 
+                # Update the property before continuing...
+                self.properties[pname] = new
+
                 removed = old - new
                 added = new - old
 
-                if self.container and ('_OB_WM_STATE_UNDECORATED' in removed or '_OB_WM_STATE_UNDECORATED' in added):
-                    self.container.fit_window()
-
-                self.properties[pname] = new
+                if self.container:
+                    if '_OB_WM_STATE_UNDECORATED' in removed or '_OB_WM_STATE_UNDECORATED' in added:
+                        self.container.fit_window()
+                    elif '_NET_WM_STATE_HIDDEN' in added:
+                        self.container.tiler.remove(self)
+                elif self.monitor and self.monitor.tiler and '_NET_WM_STATE_HIDDEN' in removed:
+                    time.sleep(0.2)
+                    self.monitor.tiler.add(self)
             elif pname == '_NET_WM_ALLOWED_ACTIONS':
                 self.properties[pname] = self._xwin.get_allowed_actions()
 

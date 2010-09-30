@@ -60,8 +60,9 @@ class AutoStore(object):
             i1, i2 = self.slaves.index(cont1), self.masters.index(cont2)
             self.slaves[i1], self.masters[i2] = self.masters[i2], self.slaves[i1]
 
+    # Maybe I want to use the active window instead?
     def inc_masters(self):
-        self.mcnt += 1
+        self.mcnt = min(self.mcnt + 1, len(self.all()))
 
         if len(self.masters) < self.mcnt and self.slaves:
             self.masters.append(self.slaves.pop(0))

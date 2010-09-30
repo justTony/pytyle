@@ -12,14 +12,15 @@ class Tile(object):
     def __init__(self, wsid, mid):
         self.workspace = Workspace.WORKSPACES[wsid]
         self.monitor = Monitor.MONITORS[wsid][mid]
-        self.monitor.tiler = self
         self.tiling = False
 
     def tile(self):
         self.tiling = True
+        self.monitor.tiler = self
 
     def untile(self):
         self.tiling = False
+        self.monitor.tiler = None
 
     def needs_tiling(self, override=False):
         if self.tiling or override:
@@ -73,18 +74,6 @@ class Tile(object):
         for tiler in Tile.queue:
             tiler.tile()
         Tile.queue = set()
-
-    @staticmethod
-    def sc_windows(added, removed):
-        for win in added:
-            tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
-            if tiler:
-                tiler.add(win)
-
-        for win in removed:
-            tiler = Tile.lookup(win.monitor.workspace.id, win.monitor.id)
-            if tiler:
-                tiler.remove(win)
 
 class AutoTile(Tile):
     def __init__(self, wsid, mid):
@@ -228,7 +217,7 @@ class AutoTile(Tile):
         self.needs_tiling()
 
     def screen_focus(self, mid):
-        new_tiler = Tile.lookup(self.workspace.id, mid)
+        new_tiler = Monitor.MONITORS[self.workspace.id][mid].tiler
 
         if self != new_tiler and new_tiler:
             active = new_tiler.get_active()
@@ -242,7 +231,7 @@ class AutoTile(Tile):
 
     def screen_put(self, mid):
         active = self.get_active()
-        new_tiler = Tile.lookup(self.workspace.id, mid)
+        new_tiler = Monitor.MONITORS[self.workspace.id][mid].tiler
 
         if new_tiler != self and active and new_tiler:
             active.win.set_monitor(self.workspace.id, mid)
