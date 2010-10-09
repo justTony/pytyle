@@ -1,4 +1,7 @@
+import config
 import ptxcb
+import tilers
+from tile import AutoTile
 from workspace import Workspace
 
 class Monitor(object):
@@ -6,7 +9,6 @@ class Monitor(object):
 
     def __init__(self, workspace, mid, x, y, width, height):
         self.workspace = workspace
-        self.workspace.monitors.add(self)
 
         self.id = mid
         self.x = x
@@ -14,16 +16,32 @@ class Monitor(object):
         self.width = width
         self.height = height
 
-        self.wa_x = self.x
-        self.wa_y = self.y
-        self.wa_width = self.width
-        self.wa_height = self.height
-
-        self._calculate_workarea()
-
         self.windows = set()
-        self.tiler = None
         self.active = None
+
+        self.tiler = None
+        self.auto = True
+        self.auto_tilers = []
+        self.man_tilers = []
+
+        # Attach tilers...
+        for tile_name in config.tilers:
+            if hasattr(tilers, tile_name):
+                tiler = getattr(tilers, tile_name)
+                self.add_tiler(tiler(self))
+
+    def get_tiler(self):
+        if not self.tiler:
+            if self.auto and self.auto_tilers:
+                self.tiler = self.auto_tilers[0]
+            elif self.man_tilers:
+                self.tiler = self.man_tilers[0]
+
+        return self.tiler
+
+    def add_tiler(self, tiler):
+        if isinstance(tiler, AutoTile):
+            self.auto_tilers.append(tiler)
 
     def get_active(self):
         if not self.active:
@@ -54,6 +72,10 @@ class Monitor(object):
         if self.tiler:
             self.tiler.remove(win)
 
+    def iter_windows(self):
+        for win in self.windows:
+            yield win
+
     def contains(self, x, y):
         if x >= self.x and y >= self.y and x < (self.x + self.width) and y < (self.y + self.height):
             return True
@@ -63,12 +85,23 @@ class Monitor(object):
 
         return False
 
-    def _calculate_workarea(self):
+    def calculate_workarea(self):
+        self.wa_x = self.x
+        self.wa_y = self.y
+        self.wa_width = self.width
+        self.wa_height = self.height
+
         wids = ptxcb.XROOT.get_window_ids()
 
         for wid in wids:
             win = ptxcb.Window(wid)
-            x, y, w, h = win.get_geometry()
+
+            # We're listening to _NET_WORKAREA, so a panel
+            # might have died before _NET_CLIENT_LIST was updated...
+            try:
+                x, y, w, h = win.get_geometry()
+            except:
+                continue
 
             if self.workspace.contains(win.get_desktop_number()) and self.contains(x, y):
                 struts = win.get_strut_partial()
@@ -76,16 +109,34 @@ class Monitor(object):
                 if not struts:
                     struts = win.get_strut()
 
-                if struts and not all([x == 0 for x in struts]):
+                if struts and not all([struts[i] == 0 for i in struts]):
                     if struts['left'] or struts['right']:
                         if struts['left']:
-                            self.wa_x -= w
+                            self.wa_x += w
                         self.wa_width -= w
 
                     if struts['top'] or struts['bottom']:
                         if struts['top']:
-                            self.wa_y -= h
+                            self.wa_y += h
                         self.wa_height -= h
+                elif struts:
+                    # When accounting for struts on left/right, and
+                    # struts are reported properly, x shouldn't be
+                    # zero. Similarly for top/bottom and y.
+
+                    if x > 0 and self.width == (x + w):
+                        self.wa_width -= w
+                    elif y > 0 and self.height == (y + h):
+                        self.wa_height -= h
+                    elif x > 0 and self.wa_x == x:
+                        self.wa_x += w
+                        self.wa_width -= w
+                    elif y > 0 and self.wa_y == y:
+                        self.wa_y += h
+                        self.wa_height -= h
+
+        if self.tiler:
+            self.tiler.needs_tiling()
 
     def __str__(self):
         return 'Monitor %d - [WORKSPACE: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (
@@ -100,23 +151,24 @@ class Monitor(object):
                     return Monitor.MONITORS[wsid][mid]
         return None
 
-    # Remember, each monitor must be attached to
-    # EVERY workspace
     @staticmethod
-    def refresh():
-        Monitor.MONITORS = {}
+    def add(wsid, xinerama):
+        Monitor.MONITORS[wsid] = {}
 
-        sinfo = ptxcb.XCONN.xinerama_get_screens()
+        for mid, screen in enumerate(xinerama):
+            new_mon = Monitor(
+                Workspace.WORKSPACES[wsid],
+                mid,
+                screen['x'],
+                screen['y'],
+                screen['width'],
+                screen['height']
+            )
 
-        for wsid in Workspace.WORKSPACES:
-            Monitor.MONITORS[wsid] = {}
+            Monitor.MONITORS[wsid][mid] = new_mon
+            Workspace.WORKSPACES[wsid].monitors[mid] = new_mon
 
-            for mid, screen in enumerate(sinfo):
-                Monitor.MONITORS[wsid][mid] = Monitor(
-                    Workspace.WORKSPACES[wsid],
-                    mid,
-                    screen['x'],
-                    screen['y'],
-                    screen['width'],
-                    screen['height']
-                )
+    @staticmethod
+    def remove(wsid):
+        del Monitor.MONITORS[wsid]
+        Workspace.WORKSPACES[wsid].monitors = {}

@@ -1,17 +1,12 @@
-from workspace import Workspace
-from monitor import Monitor
 from container import Container
-from window import Window
-from state import STATE
 from autostore import AutoStore
 
 class Tile(object):
-    TILING = {}
     queue = set()
 
-    def __init__(self, wsid, mid):
-        self.workspace = Workspace.WORKSPACES[wsid]
-        self.monitor = Monitor.MONITORS[wsid][mid]
+    def __init__(self, monitor):
+        self.workspace = monitor.workspace
+        self.monitor = monitor
         self.tiling = False
 
     def tile(self):
@@ -27,47 +22,17 @@ class Tile(object):
             Tile.queue.add(self)
 
     @staticmethod
-    def dispatch(tiler, command):
-        wsid, mid = STATE.get_active_wsid_and_mid()
+    def dispatch(monitor, command):
+        tiler = monitor.get_tiler()
 
-        # Keep track of current tilers...
-        if wsid not in Tile.TILING:
-            Tile.TILING[wsid] = {}
-
-        if mid not in Tile.TILING[wsid]:
-            Tile.TILING[wsid][mid] = tiler(wsid, mid)
-
-        t = Tile.TILING[wsid][mid]
-
-        if hasattr(t, command):
-            if command == 'tile':
-                t.needs_tiling(override=True)
-            elif t.tiling:
-                getattr(t, command)()
-        else:
-            raise Exception('Invalid command %s' % command)
-
-    # This doesn't just check if the tiler exists, but also
-    # if the tiler is active.
-    @staticmethod
-    def lookup(wsid, mid):
-        if wsid in Tile.TILING and mid in Tile.TILING[wsid] and Tile.TILING[wsid][mid].tiling:
-            return Tile.TILING[wsid][mid]
-        return None
-
-    @staticmethod
-    def iter_tilers(workspaces=None, monitors=None):
-        if isinstance(workspaces, int):
-            workspaces = [workspaces]
-
-        if isinstance(monitors, int):
-            monitors = [monitors]
-
-        for wsid in Tile.TILING:
-            if workspaces is None or wsid in workspaces:
-                for mid in Tile.TILING[wsid]:
-                    if monitors is None or mid in monitors:
-                        yield Tile.TILING[wsid][mid]
+        if tiler:
+            if hasattr(tiler, command):
+                if command == 'tile':
+                    tiler.needs_tiling(override=True)
+                elif tiler.tiling:
+                    getattr(tiler, command)()
+            else:
+                raise Exception('Invalid command %s' % command)
 
     @staticmethod
     def exec_queue():
@@ -76,8 +41,8 @@ class Tile(object):
         Tile.queue = set()
 
 class AutoTile(Tile):
-    def __init__(self, wsid, mid):
-        Tile.__init__(self, wsid, mid)
+    def __init__(self, monitor):
+        Tile.__init__(self, monitor)
         self.store = None
         self.cycle_index = 0
 
@@ -87,12 +52,12 @@ class AutoTile(Tile):
         if not self.store:
             self.store = AutoStore()
 
-            active = STATE.get_active()
+            active = self.monitor.get_active()
 
             if active:
                 self.add(active)
 
-            for win in STATE.iter_windows(self.workspace.id, self.monitor.id):
+            for win in self.monitor.iter_windows():
                 if win != active:
                     self.add(win)
 
@@ -147,7 +112,7 @@ class AutoTile(Tile):
         return None
 
     def float(self):
-        active = STATE.get_active()
+        active = self.monitor.get_active()
 
         if active and active.monitor.workspace.id == self.workspace.id and active.monitor.id == self.monitor.id:
             if not active.floating:
@@ -217,9 +182,9 @@ class AutoTile(Tile):
         self.needs_tiling()
 
     def screen_focus(self, mid):
-        new_tiler = Monitor.MONITORS[self.workspace.id][mid].tiler
+        new_tiler = self.workspace.get_monitor(mid).get_tiler()
 
-        if self != new_tiler and new_tiler:
+        if self != new_tiler and new_tiler.tiling:
             active = new_tiler.get_active()
 
             if active:
@@ -231,12 +196,12 @@ class AutoTile(Tile):
 
     def screen_put(self, mid):
         active = self.get_active()
-        new_tiler = Monitor.MONITORS[self.workspace.id][mid].tiler
+        new_tiler = self.workspace.get_monitor(mid).get_tiler()
 
-        if new_tiler != self and active and new_tiler:
+        if new_tiler != self and active and new_tiler.tiling:
             active.win.set_monitor(self.workspace.id, mid)
-        elif active and self.monitor.id != mid and mid in Monitor.MONITORS[self.workspace.id]:
-            mon = Monitor.MONITORS[self.workspace.id][mid]
+        elif active and self.monitor.id != mid and self.workspace.has_monitor(mid):
+            mon = self.workspace.get_monitor(mid)
             active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)
             active.win.set_monitor(self.workspace.id, mid)
 
@@ -263,7 +228,5 @@ class AutoTile(Tile):
 # Firstly, for *just* the auto tiling layouts, we need a tile store
 # that keeps track of which windows are masters and which are slaves...
 # The store also says which windows should get which status when
-# appropriate. Secondly, we need a grid structure that is available
+# appropriate. Secondly, we need a BST structure that is available
 # to any tiling layout--but is the horsepower of the manual tiler.
-# i.e., The grid would be helpful in auto layouts like Vertical
-# or Horizontal, but not cascade.

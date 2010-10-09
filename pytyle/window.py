@@ -3,8 +3,6 @@ import time
 import ptxcb
 from monitor import Monitor
 
-import xcb.xproto
-
 class Window(object):
     WINDOWS = {}
 
@@ -15,6 +13,7 @@ class Window(object):
         self.monitor = None
         self.floating = False
         self.pytyle_moved = False
+        self.moving = False
         self.properties = {
             '_NET_WM_NAME': '',
             '_NET_WM_DESKTOP': '',
@@ -114,12 +113,6 @@ class Window(object):
     def moveresize(self, x, y, width, height):
         self.x, self.y, self.width, self.height = x, y, width, height
 
-        # Don't do anything if the pointer is on the window...
-        if ptxcb.XROOT.button_pressed():
-            pointer = ptxcb.XROOT.query_pointer()
-            if self == Window.deep_lookup(pointer.child):
-                return
-
         self.pytyle_moved = True
 
         self._xwin.restore()
@@ -167,10 +160,13 @@ class Window(object):
 
         return True
 
-    def is_manageable(self):
-        win_types = self.properties['_NET_WM_WINDOW_TYPE']
+    @staticmethod
+    def manageable(wid):
+        win = ptxcb.Window(wid)
+
+        win_types = win.get_types()
         if not win_types or '_NET_WM_WINDOW_TYPE_NORMAL' in win_types:
-            states = self.properties['_NET_WM_STATE']
+            states = win.get_states()
 
             if ('_NET_WM_STATE_MODAL' not in states and
                 '_NET_WM_STATE_SHADED' not in states and
@@ -241,31 +237,17 @@ class Window(object):
         return None
 
     @staticmethod
-    def refresh():
-        wids = ptxcb.XROOT.get_window_ids()
-
-        for wid in wids:
-            Window.add_window(wid)
-
-        for wid in Window.WINDOWS.keys():
-            if wid not in wids:
-                Window.remove_window(wid)
-
-        ptxcb.XCONN.push()
-
-    @staticmethod
-    def add_window(wid):
+    def add(wid):
         if wid not in Window.WINDOWS:
-            win = Window(wid)
-
-            if win.is_manageable():
+            if Window.manageable(wid):
+                win = Window(wid)
                 Window.WINDOWS[wid] = win
 
                 return win
         return None
 
     @staticmethod
-    def remove_window(wid):
+    def remove(wid):
         win = Window.lookup(wid)
 
         if win:

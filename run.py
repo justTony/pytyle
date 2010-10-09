@@ -26,16 +26,15 @@ cmds = {
     'Alt-Shift-E': 'screen0_put',
     'Alt-Shift-W': 'screen1_put',
     'Alt-Shift-R': 'screen2_put',
+    'Alt-Shift-S': 'refresh_workarea',
     'Alt-F': 'float',
-    'Ctrl-C': 'quit',
+    'Alt-Ctrl-C': 'quit',
     'Alt-A': 'tile',
     'Alt-U': 'untile',
     'Alt-D': 'debug',
 }
 
 Command.init(cmds)
-
-STATE.refresh()
 
 ptxcb.XCONN.push()
 

@@ -523,8 +523,7 @@ class RootWindow(Window):
         return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_SUPPORTED')]
 
     def get_window_ids(self):
-        self.windows = set(self.get_property('_NET_CLIENT_LIST'))
-        return self.windows
+        return self.get_property('_NET_CLIENT_LIST')
 
     def get_number_of_desktops(self):
         return self.get_property('_NET_NUMBER_OF_DESKTOPS')[0]

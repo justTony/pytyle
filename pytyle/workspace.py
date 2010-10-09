@@ -12,7 +12,7 @@ class Workspace(object):
         self.total_width = total_width
         self.total_height = total_height
 
-        self.monitors = set()
+        self.monitors = {}
 
     def __str__(self):
         return 'Workspace %d - [X: %d, Y: %d, Width: %d, Height: %d]' % (
@@ -24,32 +24,40 @@ class Workspace(object):
             return True
         return False
 
+    def get_monitor(self, mid):
+        return self.monitors[mid]
+
+    def has_monitor(self, mid):
+        return mid in self.monitors
+
     @staticmethod
-    def refresh():
-        Desktop.refresh()
+    def add(wsid):
+        Desktop.add(wsid)
+
+    @staticmethod
+    def remove(wsid):
+        Desktop.remove(wsid)
 
 class Desktop(Workspace):
     @staticmethod
-    def refresh():
+    def add(wsid):
         geom = ptxcb.XROOT.get_desktop_geometry()
-        ndesks = ptxcb.XROOT.get_number_of_desktops()
         wa = ptxcb.XROOT.get_workarea()
 
-        for i in range(ndesks):
-            Desktop.WORKSPACES[i] = Desktop(
-                i,
-                wa[i]['x'],
-                wa[i]['y'],
-                wa[i]['width'],
-                wa[i]['height'],
-                geom['width'],
-                geom['height']
-            )
+        Desktop.WORKSPACES[wsid] = Desktop(
+            wsid,
+            wa[wsid]['x'],
+            wa[wsid]['y'],
+            wa[wsid]['width'],
+            wa[wsid]['height'],
+            geom['width'],
+            geom['height']
+        )
+
+    @staticmethod
+    def remove(wsid):
+        del Workspace.WORKSPACES[wsid]
 
 class Viewport(Workspace):
     def __init__(self):
         pass
-
-    @staticmethod
-    def refresh():
-        Viewport.WORKSPACES = {'0': None}

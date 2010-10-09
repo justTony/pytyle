@@ -1,5 +1,4 @@
 from container import Container
-from window import Window
 
 class AutoStore(object):
     def __init__(self):

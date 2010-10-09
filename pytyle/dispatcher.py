@@ -1,5 +1,3 @@
-import time
-
 import ptxcb
 import tilers
 from command import Command
@@ -33,14 +31,16 @@ class Dispatcher(object):
         x = cmd.get_command()
 
         if x == 'quit':
-            for tiler in Tile.iter_tilers():
+            for tiler in STATE.iter_tilers():
                 tiler.untile()
 
             self._stop = True
         elif x == 'debug':
             STATE.print_hierarchy(*STATE.get_active_wsid_and_mid())
+        elif x == 'refresh_workarea':
+            STATE.update_property('_NET_WORKAREA')
         else:
-            Tile.dispatch(tilers.Vertical, x)
+            Tile.dispatch(STATE.get_active_monitor(), x)
 
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
@@ -53,7 +53,8 @@ class Dispatcher(object):
                     pointer = ptxcb.XROOT.query_pointer()
 
                     if ptxcb.XROOT.button_pressed():
-                        STATE.moving = True
+                        STATE.moving = win
+                        STATE.moving.moving = True
 
                 win.set_geometry(
                     self._event_data['x'],
@@ -65,15 +66,9 @@ class Dispatcher(object):
     def PropertyNotifyEvent(self):
         a = self._event_data['atom']
 
-        if a == '_NET_ACTIVE_WINDOW':
-            STATE.refresh_active()
-        elif a == '_NET_CLIENT_LIST':
-            old = ptxcb.XROOT.windows
-            new = ptxcb.XROOT.get_window_ids()
+        STATE.update_property(a)
 
-            if old != new:
-                added, removed = STATE.handle_window_add_or_remove(old, new)
-        else:
+        if self._event_data['window']:
             win = Window.lookup(self._event_data['window'].wid)
 
             if win and win.lives():
@@ -88,10 +83,10 @@ class Dispatcher(object):
                 win = Window.deep_lookup(pointer.child)
 
                 if win:
-                    for tiler in Tile.iter_tilers(win.monitor.workspace.id):
-                        if tiler:
-                            tiler.needs_tiling()
+                    for tiler in STATE.iter_tilers(win.monitor.workspace.id):
+                        tiler.needs_tiling()
 
+                STATE.moving.moving = False
                 STATE.moving = False
 
     def FocusOutEvent(self):

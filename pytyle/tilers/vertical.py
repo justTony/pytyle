@@ -1,18 +1,13 @@
 from pytyle.tile import AutoTile
-from pytyle.autostore import AutoStore
-from pytyle.container import Container
-from pytyle.window import Window
 
 class Vertical(AutoTile):
-    def __init__(self, wsid, mid):
-        AutoTile.__init__(self, wsid, mid)
+    def __init__(self, monitor):
+        AutoTile.__init__(self, monitor)
 
         self.hsplit = 0.5
 
     def tile(self):
         AutoTile.tile(self)
-
-        print self.store
 
         m_size = len(self.store.masters)
         s_size = len(self.store.slaves)
@@ -22,6 +17,8 @@ class Vertical(AutoTile):
 
         m_x = self.monitor.wa_x
         s_x = m_x + m_width
+
+        print self.store
 
         if m_width <= 0 or m_width > self.monitor.wa_width or s_width <= 0 or s_width > self.monitor.wa_width:
             return
@@ -35,7 +32,7 @@ class Vertical(AutoTile):
             for i, cont in enumerate(self.store.masters):
                 cont.moveresize(
                     m_x,
-                    i * m_height,
+                    self.monitor.wa_y + i * m_height,
                     m_width,
                     m_height
                 )
@@ -50,7 +47,7 @@ class Vertical(AutoTile):
             for i, cont in enumerate(self.store.slaves):
                 cont.moveresize(
                     s_x,
-                    i * s_height,
+                    self.monitor.wa_y + i * s_height,
                     s_width,
                     s_height
                 )

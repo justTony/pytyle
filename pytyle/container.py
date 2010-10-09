@@ -34,6 +34,10 @@ class Container(object):
         self.fit_window()
 
     def fit_window(self):
+        # Don't do anything if the pointer is on the window...
+        if self.win.moving:
+            return
+
         if (self.x != -1 and self.y != -1
             and self.w != -1 and self.h != -1):
             self.win.moveresize(self.x, self.y, self.w, self.h)
