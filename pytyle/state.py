@@ -148,7 +148,8 @@ class State(object):
                 print Workspace.WORKSPACES[wsid]
 
                 mons = Workspace.WORKSPACES[wsid].monitors
-                for mon in mons:
+                for mid in mons:
+                    mon = mons[mid]
                     if monitors is None or mon.id in monitors:
                         print '\t%s' % mon
 

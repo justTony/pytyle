@@ -11,7 +11,6 @@ class Command:
         'super': xcb.xproto.ModMask._4
     }
 
-
     def __init__(self, keys, command):
         self._original_keybinding = keys
         self._mod_mask = 0
