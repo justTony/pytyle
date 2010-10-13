@@ -3,6 +3,20 @@ import ptxcb
 class Workspace(object):
     WORKSPACES = {}
 
+    @staticmethod
+    def add(wsid):
+        Desktop.add(wsid)
+
+    @staticmethod
+    def iter_all_monitors():
+        for wsid in Workspace.WORKSPACES:
+            for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+                yield mon
+
+    @staticmethod
+    def remove(wsid):
+        Desktop.remove(wsid)
+
     def __init__(self, wsid, x, y, width, height, total_width, total_height):
         self.id = wsid
         self.x = x
@@ -13,11 +27,6 @@ class Workspace(object):
         self.total_height = total_height
 
         self.monitors = {}
-
-    def __str__(self):
-        return 'Workspace %d - [X: %d, Y: %d, Width: %d, Height: %d]' % (
-            self.id, self.x, self.y, self.width, self.height
-        )
 
     def contains(self, wsid):
         if wsid == 'all' or self.id == wsid:
@@ -30,13 +39,14 @@ class Workspace(object):
     def has_monitor(self, mid):
         return mid in self.monitors
 
-    @staticmethod
-    def add(wsid):
-        Desktop.add(wsid)
+    def iter_monitors(self):
+        for mid in self.monitors:
+            yield self.get_monitor(mid)
 
-    @staticmethod
-    def remove(wsid):
-        Desktop.remove(wsid)
+    def __str__(self):
+        return 'Workspace %d - [X: %d, Y: %d, Width: %d, Height: %d]' % (
+            self.id, self.x, self.y, self.width, self.height
+        )
 
 class Desktop(Workspace):
     @staticmethod

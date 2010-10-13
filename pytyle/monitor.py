@@ -1,11 +1,38 @@
+# Library imports
 import config
 import ptxcb
 import tilers
+
+# Class imports
 from tile import AutoTile
 from workspace import Workspace
 
 class Monitor(object):
-    MONITORS = {}
+    @staticmethod
+    def add(wsid, xinerama):
+        for mid, screen in enumerate(xinerama):
+            new_mon = Monitor(
+                Workspace.WORKSPACES[wsid],
+                mid,
+                screen['x'],
+                screen['y'],
+                screen['width'],
+                screen['height']
+            )
+
+            Workspace.WORKSPACES[wsid].monitors[mid] = new_mon
+
+    @staticmethod
+    def lookup(wsid, x, y):
+        if wsid in Workspace.WORKSPACES:
+            for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+                if mon.contains(x, y):
+                    return mon
+        return None
+
+    @staticmethod
+    def remove(wsid):
+        Workspace.WORKSPACES[wsid].monitors = {}
 
     def __init__(self, workspace, mid, x, y, width, height):
         self.workspace = workspace
@@ -30,25 +57,9 @@ class Monitor(object):
                 tiler = getattr(tilers, tile_name)
                 self.add_tiler(tiler(self))
 
-    def get_tiler(self):
-        if not self.tiler:
-            if self.auto and self.auto_tilers:
-                self.tiler = self.auto_tilers[0]
-            elif self.man_tilers:
-                self.tiler = self.man_tilers[0]
-
-        return self.tiler
-
     def add_tiler(self, tiler):
         if isinstance(tiler, AutoTile):
             self.auto_tilers.append(tiler)
-
-    def get_active(self):
-        if not self.active:
-            if self.windows:
-                self.active = [w for w in self.windows][0]
-
-        return self.active
 
     def add_window(self, win):
         self.windows.add(win)
@@ -58,32 +69,6 @@ class Monitor(object):
 
         if self.tiler:
             self.tiler.add(win)
-
-    def remove_window(self, win):
-        if win in self.windows:
-            self.windows.remove(win)
-
-        if self.active == win:
-            if self.windows:
-                self.active = [w for w in self.windows][0]
-            else:
-                self.active = None
-
-        if self.tiler:
-            self.tiler.remove(win)
-
-    def iter_windows(self):
-        for win in self.windows:
-            yield win
-
-    def contains(self, x, y):
-        if x >= self.x and y >= self.y and x < (self.x + self.width) and y < (self.y + self.height):
-            return True
-
-        if (x < 0 or y < 0) and self.x == 0 and self.y == 0:
-            return True
-
-        return False
 
     def calculate_workarea(self):
         self.wa_x = self.x
@@ -138,37 +123,55 @@ class Monitor(object):
         if self.tiler:
             self.tiler.needs_tiling()
 
+    def contains(self, x, y):
+        if x >= self.x and y >= self.y and x < (self.x + self.width) and y < (self.y + self.height):
+            return True
+
+        if (x < 0 or y < 0) and self.x == 0 and self.y == 0:
+            return True
+
+        return False
+
+    def get_active(self):
+        if not self.active:
+            if self.windows:
+                self.active = [w for w in self.windows][0]
+
+        return self.active
+
+    def get_tiler(self):
+        if not self.tiler:
+            if self.auto and self.auto_tilers:
+                self.tiler = self.auto_tilers[0]
+            elif self.man_tilers:
+                self.tiler = self.man_tilers[0]
+
+        return self.tiler
+
+    def iter_windows(self):
+        for win in self.windows:
+            yield win
+
+    def refresh_bounds(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+    def remove_window(self, win):
+        if win in self.windows:
+            self.windows.remove(win)
+
+        if self.active == win:
+            if self.windows:
+                self.active = [w for w in self.windows][0]
+            else:
+                self.active = None
+
+        if self.tiler:
+            self.tiler.remove(win)
+
     def __str__(self):
         return 'Monitor %d - [WORKSPACE: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (
             self.id, self.workspace.id, self.x, self.y, self.width, self.height
         )
-
-    @staticmethod
-    def lookup(wsid, x, y):
-        if wsid in Monitor.MONITORS:
-            for mid in Monitor.MONITORS[wsid]:
-                if Monitor.MONITORS[wsid][mid].contains(x, y):
-                    return Monitor.MONITORS[wsid][mid]
-        return None
-
-    @staticmethod
-    def add(wsid, xinerama):
-        Monitor.MONITORS[wsid] = {}
-
-        for mid, screen in enumerate(xinerama):
-            new_mon = Monitor(
-                Workspace.WORKSPACES[wsid],
-                mid,
-                screen['x'],
-                screen['y'],
-                screen['width'],
-                screen['height']
-            )
-
-            Monitor.MONITORS[wsid][mid] = new_mon
-            Workspace.WORKSPACES[wsid].monitors[mid] = new_mon
-
-    @staticmethod
-    def remove(wsid):
-        del Monitor.MONITORS[wsid]
-        Workspace.WORKSPACES[wsid].monitors = {}

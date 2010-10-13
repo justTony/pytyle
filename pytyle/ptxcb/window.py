@@ -302,6 +302,9 @@ class Window(object):
 
     def get_property(self, atom_name):
         try:
+            if not Atom.get_type_name(atom_name):
+                return ''
+
             rsp = XCONN.get_core().GetProperty(
                 False,
                 self.wid,
@@ -311,12 +314,9 @@ class Window(object):
                 (2 ** 32) - 1
             ).reply()
 
-            if not Atom.get_type_name(atom_name):
-                return ''
-
             if Atom.get_type_name(atom_name) == 'UTF8_STRING':
                 return Atom.ords_to_str(rsp.value)
-            elif Atom.get_type_name(atom_name) == 'UTF8_STRING[]':
+            elif Atom.get_type_name(atom_name) in ('UTF8_STRING[]', 'STRING[]'):
                 return Atom.null_terminated_to_strarray(rsp.value)
             else:
                 return list(struct.unpack('I' * (len(rsp.value) / 4), rsp.value.buf()))

@@ -1,5 +1,6 @@
 atoms = {
     'WM_STATE': ('CARDINAL', 32),
+    'WM_CLASS': ('STRING[]', 8),
 
     '_NET_SUPPORTED': ('ATOM', 32),
     '_NET_CLIENT_LIST': ('WINDOW', 32),

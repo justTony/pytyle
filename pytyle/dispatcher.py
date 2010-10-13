@@ -45,7 +45,7 @@ class Dispatcher(object):
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
-        if win and win.lives():
+        if win and win.lives() and not win.floating:
             if win.pytyle_moved:
                 win.pytyle_moved = False
             else:

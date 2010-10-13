@@ -35,7 +35,7 @@ class Container(object):
 
     def fit_window(self):
         # Don't do anything if the pointer is on the window...
-        if self.win.moving:
+        if not self.win or self.win.moving:
             return
 
         if (self.x != -1 and self.y != -1
