@@ -51,7 +51,7 @@ class State(object):
 
             for mon in Workspace.WORKSPACES[wsid].iter_monitors():
                 if mon.contains(px, py):
-                    mid = m
+                    mid = mon.id
                     break
 
         return (wsid, mid)
@@ -74,6 +74,20 @@ class State(object):
 
                         if tiler and tiler.tiling:
                             yield tiler
+
+    def iter_windows(self, workspaces=None, monitors=None):
+        if isinstance(workspaces, int):
+            workspaces = [workspaces]
+
+        if isinstance(monitors, int):
+            monitors = [monitors]
+
+        for wsid in Workspace.WORKSPACES:
+            if workspaces is None or wsid in workspaces:
+                for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+                    if monitors is None or mon.id in monitors:
+                        for win in mon.iter_windows():
+                            yield win
 
     def load_properties(self):
         property_order = [

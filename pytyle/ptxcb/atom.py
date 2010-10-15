@@ -56,7 +56,7 @@ class Atom:
 
     @staticmethod
     def ords_to_str(ords):
-        return ''.join([chr(i) for i in ords])
+        return ''.join([chr(i) for i in ords if i < 128])
 
     @staticmethod
     def null_terminated_to_strarray(ords):

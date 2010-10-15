@@ -1,6 +1,6 @@
 import struct
 
-import xcb.xproto, xcb.xcb, xcb.xinerama
+import xcb.xproto, xcb.xcb, xcb.xinerama, xcb.randr
 
 class Connection(object):
     _singleton = None
@@ -36,6 +36,14 @@ class Connection(object):
     def get_core(self):
         return self.get_conn().core
 
+    def get_extensions(self):
+        ret = []
+        exts = self.get_core().ListExtensions().reply()
+        for name in exts.names:
+            ret.append(''.join([chr(i) for i in name.name]).lower())
+
+        return ret
+
     def get_setup(self):
         return self._setup
 
@@ -46,8 +54,10 @@ class Connection(object):
         return self._codes_to_syms[keycode][0]
 
     def xinerama_get_screens(self):
-        screens = self.get_conn()(xcb.xinerama.key).QueryScreens().reply().screen_info
         ret = []
+
+        xinerama = self.get_conn()(xcb.xinerama.key)
+        screens = xinerama.QueryScreens().reply().screen_info
 
         for screen in screens:
             ret.append({
@@ -56,6 +66,14 @@ class Connection(object):
                 'width': screen.width,
                 'height': screen.height
             })
+
+        # For the RandR extension...
+        # I'm using nVidia TwinView... need to test this
+        #randr = self.get_conn()(xcb.randr.key)
+        #r_screens = randr.GetScreenResources(self.get_setup().roots[0].root).reply()
+        #for icrt in r_screens.crtcs:
+            #crt = randr.GetCrtcInfo(icrt, xcb.xcb.CurrentTime).reply()
+            #crt.x, crt.y, crt.width, crt.height
 
         return ret
 

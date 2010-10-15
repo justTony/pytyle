@@ -2,6 +2,7 @@ import time
 
 import ptxcb
 import config
+
 from workspace import Workspace
 from monitor import Monitor
 
@@ -29,7 +30,7 @@ class Window(object):
 
         if children:
             for child_wid in children:
-                ret = Window.lookup(child_wid)
+                ret = Window.deep_lookup(child_wid)
 
                 if ret:
                     return ret
@@ -75,7 +76,7 @@ class Window(object):
         self.container = None
         self.monitor = None
         self.floating = False
-        self.pytyle_moved = False
+        self.pytyle_moved_time = 0
         self.moving = False
         self.properties = {
             '_NET_WM_NAME': '',
@@ -90,7 +91,9 @@ class Window(object):
 
         self.load_geometry()
         self.load_properties()
-        self.update_monitor()
+
+        self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
+        self.omaximized = self.maximized()
 
         self._xwin.listen()
 
@@ -113,7 +116,16 @@ class Window(object):
         self.x, self.y, self.width, self.height = self._xwin.get_geometry()
 
     def load_properties(self):
-        for pname in self.properties:
+        property_order = [
+            '_NET_WM_NAME',
+            '_NET_WM_DESKTOP',
+            '_NET_WM_WINDOW_TYPE',
+            '_NET_WM_STATE',
+            '_NET_WM_ALLOWED_ACTIONS',
+            '_NET_FRAME_EXTENTS'
+        ]
+
+        for pname in property_order:
             self.update_property(pname)
 
     def maximize(self):
@@ -129,7 +141,7 @@ class Window(object):
     def moveresize(self, x, y, width, height):
         self.x, self.y, self.width, self.height = x, y, width, height
 
-        self.pytyle_moved = True
+        self.pytyle_moved_time = time.time()
 
         self._xwin.restore()
         self._xwin.moveresize(x, y, width, height)
@@ -142,10 +154,6 @@ class Window(object):
 
     def set_container(self, container):
         self.container = container
-
-        if container:
-            self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
-            self.omaximized = self.maximized()
 
     def set_geometry(self, x, y, w, h):
         self.x, self.y, self.width, self.height = x, y, w, h
@@ -187,6 +195,10 @@ class Window(object):
         if pname in self.properties:
             if pname == '_NET_WM_NAME':
                 self.name = self._xwin.get_name()
+
+                if not self.name:
+                    self.name = 'N/A'
+
                 self.properties[pname] = self.name
             elif pname == '_NET_FRAME_EXTENTS':
                 if self.container:
@@ -216,9 +228,9 @@ class Window(object):
                         self.container.fit_window()
                     elif '_NET_WM_STATE_HIDDEN' in added:
                         self.container.tiler.remove(self)
-                elif self.monitor and self.monitor.tiler and '_NET_WM_STATE_HIDDEN' in removed:
+                elif self.monitor and self.monitor.get_tiler() and '_NET_WM_STATE_HIDDEN' in removed:
                     time.sleep(0.2)
-                    self.monitor.tiler.add(self)
+                    self.monitor.get_tiler().add(self)
             elif pname == '_NET_WM_ALLOWED_ACTIONS':
                 self.properties[pname] = self._xwin.get_allowed_actions()
 

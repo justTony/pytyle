@@ -41,6 +41,9 @@ atoms = {
     '_NET_FRAME_EXTENTS': ('CARDINAL', 32),
 
     '_OB_APP_TYPE': ('UTF8_STRING', 8),
+
+    '_MOTIF_WM_HINTS': ('_MOTIF_WM_HINTS', 32),
+    '_KDE_NET_WM_FRAME_STRUT': ('CARDINAL', 32),
 }
 
 window_types = {

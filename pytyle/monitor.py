@@ -67,8 +67,8 @@ class Monitor(object):
         if win.id == ptxcb.XROOT.get_active_window():
             self.active = win
 
-        if self.tiler:
-            self.tiler.add(win)
+        if self.get_tiler():
+            self.get_tiler().add(win)
 
     def calculate_workarea(self):
         self.wa_x = self.x
@@ -77,6 +77,11 @@ class Monitor(object):
         self.wa_height = self.height
 
         wids = ptxcb.XROOT.get_window_ids()
+
+        # Keep track of what we've added...
+        # If we come across a window with the same exact
+        # size/position/struts, skip it!
+        log = []
 
         for wid in wids:
             win = ptxcb.Window(wid)
@@ -93,6 +98,13 @@ class Monitor(object):
 
                 if not struts:
                     struts = win.get_strut()
+
+                key = (x, y, w, h, struts)
+
+                if key in log:
+                    continue
+
+                log.append(key)
 
                 if struts and not all([struts[i] == 0 for i in struts]):
                     if struts['left'] or struts['right']:
@@ -120,8 +132,7 @@ class Monitor(object):
                         self.wa_y += h
                         self.wa_height -= h
 
-        if self.tiler:
-            self.tiler.needs_tiling()
+        self.tile()
 
     def contains(self, x, y):
         if x >= self.x and y >= self.y and x < (self.x + self.width) and y < (self.y + self.height):
@@ -131,6 +142,19 @@ class Monitor(object):
             return True
 
         return False
+
+    def cycle(self):
+        if self.auto and self.auto_tilers:
+            force_tiling = False
+            if self.get_tiler() and self.get_tiler().tiling:
+                force_tiling = True
+                self.get_tiler().detach()
+
+            self.tiler = self.auto_tilers[
+                (self.auto_tilers.index(self.tiler) + 1) % len(self.auto_tilers)
+            ]
+
+            self.tile(force_tiling)
 
     def get_active(self):
         if not self.active:
@@ -168,8 +192,23 @@ class Monitor(object):
             else:
                 self.active = None
 
-        if self.tiler:
-            self.tiler.remove(win)
+        if self.get_tiler():
+            self.get_tiler().remove(win)
+
+    def tile(self, force_tiling=False):
+        self.get_tiler().enqueue(force_tiling=force_tiling)
+
+    def tile_reset(self):
+        if self.auto and self.auto_tilers:
+            i = self.auto_tilers.index(self.get_tiler())
+            tile_name = self.auto_tilers[i].__class__.__name__
+
+            if hasattr(tilers, tile_name):
+                self.get_tiler().detach()
+                self.auto_tilers[i] = getattr(tilers, tile_name)(self)
+                self.tiler = self.auto_tilers[i]
+
+                self.tile(force_tiling=True)
 
     def __str__(self):
         return 'Monitor %d - [WORKSPACE: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (

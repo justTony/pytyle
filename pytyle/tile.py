@@ -11,7 +11,7 @@ class Tile(object):
         if tiler:
             if hasattr(tiler, command):
                 if command == 'tile':
-                    tiler.needs_tiling(override=True)
+                    tiler.enqueue(force_tiling=True)
                 elif tiler.tiling:
                     getattr(tiler, command)()
             else:
@@ -29,8 +29,8 @@ class Tile(object):
         self.monitor = monitor
         self.tiling = False
 
-    def needs_tiling(self, override=False):
-        if self.tiling or override:
+    def enqueue(self, force_tiling=False):
+        if self.tiling or force_tiling:
             Tile.queue.add(self)
 
 
@@ -53,13 +53,22 @@ class AutoTile(Tile):
         if win.tilable() and self.tiling:
             cont = Container(self, win)
             self.store.add(cont)
-            self.needs_tiling()
+            self.enqueue()
+
+    def detach(self):
+        self.tiling = False
+
+        if self.store:
+            for cont in self.store.all()[:]:
+                cont.remove()
+
+            self.store = None
 
     def remove(self, win, reset_window=False):
         if win.container and self.tiling:
             self.store.remove(win.container)
             win.container.remove(reset_window=reset_window)
-            self.needs_tiling()
+            self.enqueue()
 
     # Helpers
     def _get_active(self):
@@ -74,7 +83,7 @@ class AutoTile(Tile):
         return None
 
     def _get_next(self):
-        active = self.get_active()
+        active = self._get_active()
 
         if active:
             a = self.store.all()
@@ -83,7 +92,7 @@ class AutoTile(Tile):
         return None
 
     def _get_previous(self):
-        active = self.get_active()
+        active = self._get_active()
 
         if active:
             a = self.store.all()
@@ -95,7 +104,7 @@ class AutoTile(Tile):
         new_tiler = self.workspace.get_monitor(mid).get_tiler()
 
         if self != new_tiler and new_tiler.tiling:
-            active = new_tiler.get_active()
+            active = new_tiler._get_active()
 
             if active:
                 active.activate()
@@ -128,9 +137,12 @@ class AutoTile(Tile):
 
             self.cycle_index += 1
 
+    def cycle_tiler(self):
+        self.monitor.cycle()
+
     def decrement_masters(self):
         self.store.dec_masters()
-        self.needs_tiling()
+        self.enqueue()
 
     def float(self):
         active = self.monitor.get_active()
@@ -151,7 +163,7 @@ class AutoTile(Tile):
 
     def increment_masters(self):
         self.store.inc_masters()
-        self.needs_tiling()
+        self.enqueue()
 
     def make_active_master(self):
         if self.store.masters:
@@ -172,6 +184,9 @@ class AutoTile(Tile):
 
         if previous:
             previous.activate()
+
+    def reset(self):
+        self.monitor.tile_reset()
 
     def screen0_focus(self):
         self._screen_focus(0)

@@ -31,6 +31,8 @@ cmds = {
     'Alt-Ctrl-C': 'quit',
     'Alt-A': 'tile',
     'Alt-U': 'untile',
+    'Alt-Z': 'cycle_tiler',
+    'Alt-Shift-space': 'reset',
     'Alt-D': 'debug',
 }
 

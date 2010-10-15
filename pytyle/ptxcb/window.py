@@ -56,7 +56,14 @@ class Window(object):
             return False
 
     def activate(self):
-        XCONN.get_core().SetInputFocus(0, self.wid, 0)
+        self.send_client_event(
+            Atom.get_atom('_NET_ACTIVE_WINDOW'),
+            [
+                2,
+                xcb.xcb.CurrentTime,
+                self.wid
+            ]
+        )
         self.stack(True)
 
     def get_name(self):
@@ -186,24 +193,18 @@ class Window(object):
 
     def get_geometry(self):
         try:
-            rx, ry, rwidth, rheight = self.query_tree_parent().get_raw_geometry()
+            # Need to move up two parents to get proper coordinates and size
+            if XROOT.wm() == 'kwin':
+                x, y, w, h = self.query_tree_parent().query_tree_parent().get_raw_geometry()
+            else:
+                x, y, w, h = self.query_tree_parent().get_raw_geometry()
 
             return (
-                rx,
-                ry,
-                rwidth,
-                rheight
+                x,
+                y,
+                w,
+                h
             )
-
-            # rx, ry, rwidth, rheight = self.get_raw_geometry()
-            # rawtrans = XCONN.get_core().TranslateCoordinates(self.wid, XROOT.wid, rx, ry).reply()
-    #
-            # return (
-                # rawtrans.dst_x - (2 * rx),
-                # rawtrans.dst_y - (2 * ry),
-                # rwidth,
-                # rheight
-            # )
         except:
             return False
 
@@ -214,43 +215,46 @@ class Window(object):
 
     def _moveresize(self, x, y, width, height):
         try:
-            # I might be able to move this elsewhere...
-            # Doesn't need to be calculated every time,
-            # just when decorations are toggled
-            # Also, does it work in other WM's besides Openbox?
-            rx, ry, rwidth, rheight = self.get_raw_geometry()
-            px, py, pwidth, pheight = self.query_tree_parent().get_raw_geometry()
+            # KWin reports _NET_FRAME_EXTENTS correctly...
+            if XROOT.wm() == 'kwin':
+                borders = self.get_frame_extents()
 
-            w = width - (pwidth - rwidth)
-            h = height - (pheight - rheight)
+                rx, ry, rwidth, rheight = self.get_raw_geometry()
+                px, py, pwidth, pheight = self.get_geometry()
+
+                w = width - (borders['left'] + borders['right'])
+                h = height - (borders['top'] + borders['bottom'])
+            else:
+                rx, ry, rwidth, rheight = self.get_raw_geometry()
+                px, py, pwidth, pheight = self.get_geometry()
+
+                w = width - (pwidth - rwidth)
+                h = height - (pheight - rheight)
 
             x = 0 if x < 0 else x
             y = 0 if y < 0 else y
             w = 1 if w <= 0 else w
             h = 1 if h <= 0 else h
 
-            # XCONN.get_core().ConfigureWindow(
-                # self.wid,
-                # xcb.xproto.ConfigWindow.X | xcb.xproto.ConfigWindow.Y | xcb.xproto.ConfigWindow.Width | xcb.xproto.ConfigWindow.Height,
-                # [x, y, w, h]
-            # )
-
-            self.send_client_event(
-                Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
-                [
-                    xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
-                    x,
-                    y,
-                    w,
-                    h
-                ],
-                32,
-                xcb.xproto.EventMask.StructureNotify
-            )
-
-            XCONN.push()
+            self.raw_moveresize(x, y, w, h)
         except:
             return False
+
+    def raw_moveresize(self, x, y, width, height):
+        self.send_client_event(
+            Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
+            [
+                xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
+                x,
+                y,
+                width,
+                height
+            ],
+            32,
+            xcb.xproto.EventMask.StructureNotify
+        )
+
+        XCONN.push()
 
     def close(self):
         self.send_client_event(
@@ -265,36 +269,42 @@ class Window(object):
         )
 
     def add_decorations(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_WM_STATE'),
-            [
-                0,
-                Atom.get_atom('_OB_WM_STATE_UNDECORATED')
-            ]
-        )
+        if XROOT.wm() == 'openbox':
+            self.send_client_event(
+                Atom.get_atom('_NET_WM_STATE'),
+                [
+                    0,
+                    Atom.get_atom('_OB_WM_STATE_UNDECORATED')
+                ]
+            )
+        else:
+            self.set_property('_MOTIF_WM_HINTS', [2, 0, 1, 0, 0])
 
         XCONN.push()
 
     def remove_decorations(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_WM_STATE'),
-            [
-                1,
-                Atom.get_atom('_OB_WM_STATE_UNDECORATED')
-            ]
-        )
+        if XROOT.wm() == 'openbox':
+            self.send_client_event(
+                Atom.get_atom('_NET_WM_STATE'),
+                [
+                    1,
+                    Atom.get_atom('_OB_WM_STATE_UNDECORATED')
+                ]
+            )
+        else:
+            self.set_property('_MOTIF_WM_HINTS', [2, 0, 0, 0, 0])
 
         XCONN.push()
 
     def box(self):
-        geom = self.get_geometry()
+        x, y, w, h = self.get_geometry()
 
         bw = 5
 
-        self._box['htop'] = LineWindow(geom['x'], geom['y'], geom['width'], bw)
-        self._box['hbot'] = LineWindow(geom['x'], geom['y'] + geom['height'], geom['width'] + bw, bw)
-        self._box['vleft'] = LineWindow(geom['x'], geom['y'], bw, geom['height'])
-        self._box['vright'] = LineWindow(geom['x'] + geom['width'], geom['y'], bw, geom['height'])
+        self._box['htop'] = LineWindow(x, y, w, bw)
+        self._box['hbot'] = LineWindow(x, y + h, w + bw, bw)
+        self._box['vleft'] = LineWindow(x, y, bw, h)
+        self._box['vright'] = LineWindow(x + w, y, bw, h)
 
     def unbox(self):
         for box in self._box.values():
@@ -354,6 +364,16 @@ class Window(object):
                 self.wid,
                 xcb.xproto.CW.EventMask,
                 [event_masks]
+            )
+        except:
+            print traceback.format_exc()
+
+    def set_override_redirect(self, override_redirect):
+        try:
+            XCONN.get_core().ChangeWindowAttributes(
+                self.wid,
+                xcb.xproto.CW.OverrideRedirect,
+                [override_redirect]
             )
         except:
             print traceback.format_exc()
@@ -461,26 +481,28 @@ class LineWindow(Window):
             [self._pixel]
         )
 
+        self.set_override_redirect(True)
         self.set_property('_NET_WM_NAME', 'Internal PyTyle Window')
-        self.set_property('_NET_WM_WINDOW_TYPE', [Atom.get_atom('_NET_WM_WINDOW_TYPE_NORMAL')])
-        self.set_property('_NET_WM_STATE', [
-            Atom.get_atom('_OB_WM_STATE_UNDECORATED'),
-            Atom.get_atom('_NET_WM_STATE_SKIP_TASKBAR'),
-            Atom.get_atom('_NET_WM_STATE_SKIP_PAGER'),
-            Atom.get_atom('_NET_WM_STATE_ABOVE'),
-            Atom.get_atom('_NET_WM_STATE_HIDDEN')
-        ])
+        #self.set_property('_NET_WM_WINDOW_TYPE', [Atom.get_atom('_NET_WM_WINDOW_TYPE_NORMAL')])
+        #self.set_property('_NET_WM_STATE', [
+            #Atom.get_atom('_OB_WM_STATE_UNDECORATED'),
+            #Atom.get_atom('_NET_WM_STATE_SKIP_TASKBAR'),
+            #Atom.get_atom('_NET_WM_STATE_SKIP_PAGER'),
+            #Atom.get_atom('_NET_WM_STATE_ABOVE'),
+            #Atom.get_atom('_NET_WM_STATE_HIDDEN')
+        #])
+        #self.set_property('_MOTIF_WM_HINTS', [2, 0, 0, 0, 0])
 
         XCONN.get_core().MapWindow(self.wid)
-        self.moveresize(x, y, width, height)
+        #self.raw_moveresize(x, y, width, height)
 
-        self.send_client_event(
-            Atom.get_atom('_NET_WM_STATE'),
-            [
-                0,
-                Atom.get_atom('_NET_WM_STATE_HIDDEN')
-            ]
-        )
+        #self.send_client_event(
+            #Atom.get_atom('_NET_WM_STATE'),
+            #[
+                #0,
+                #Atom.get_atom('_NET_WM_STATE_HIDDEN')
+            #]
+        #)
 
         XCONN.push()
 
@@ -564,7 +586,7 @@ class RootWindow(Window):
         return ret
 
     def get_window_manager_name(self):
-        return Window(self.get_property('_NET_SUPPORTING_WM_CHECK')[0]).get_name()
+        return Window(self.get_property('_NET_SUPPORTING_WM_CHECK')[0]).get_name().lower()
 
     def get_desktop_layout(self):
         raw = self.get_property('_NET_DESKTOP_LAYOUT')
@@ -590,5 +612,8 @@ class RootWindow(Window):
         raw = self.query_pointer()
 
         return (raw.root_x, raw.root_y)
+
+    def wm(self):
+        return self.get_window_manager_name()
 
 XROOT = RootWindow.get_root_window()

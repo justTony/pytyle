@@ -18,6 +18,7 @@ class Vertical(AutoTile):
         m_x = self.monitor.wa_x
         s_x = m_x + m_width
 
+        print 'Vertical'
         print self.store
 
         if m_width <= 0 or m_width > self.monitor.wa_width or s_width <= 0 or s_width > self.monitor.wa_width:
@@ -54,8 +55,8 @@ class Vertical(AutoTile):
 
     def increase_master(self, inc = 0.05):
         self.hsplit += inc
-        self.needs_tiling()
+        self.enqueue()
 
     def decrease_master(self, dec = 0.05):
         self.hsplit -= dec
-        self.needs_tiling()
+        self.enqueue()

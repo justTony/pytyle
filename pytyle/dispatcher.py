@@ -1,5 +1,9 @@
+import time
+
+import config
 import ptxcb
 import tilers
+
 from command import Command
 from state import STATE
 from window import Window
@@ -40,15 +44,14 @@ class Dispatcher(object):
         elif x == 'refresh_workarea':
             STATE.update_property('_NET_WORKAREA')
         else:
+            #STATE.get_active_monitor()
             Tile.dispatch(STATE.get_active_monitor(), x)
 
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
         if win and win.lives() and not win.floating:
-            if win.pytyle_moved:
-                win.pytyle_moved = False
-            else:
+            if time.time() - win.pytyle_moved_time > config.pytyle_move_offset:
                 if STATE.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
                     pointer = ptxcb.XROOT.query_pointer()
 
@@ -84,7 +87,7 @@ class Dispatcher(object):
 
                 if win:
                     for tiler in STATE.iter_tilers(win.monitor.workspace.id):
-                        tiler.needs_tiling()
+                        tiler.enqueue()
 
                 STATE.moving.moving = False
                 STATE.moving = False
