@@ -1,5 +1,3 @@
-from container import Container
-
 class AutoStore(object):
     def __init__(self):
         self.masters = []

@@ -18,9 +18,6 @@ class Horizontal(AutoTile):
         m_y = self.monitor.wa_y
         s_y = m_y + m_height
 
-        print 'Horizontal'
-        print self.store
-
         if m_height <= 0 or m_height > self.monitor.wa_height or s_height <= 0 or s_height > self.monitor.wa_height:
             return
 

@@ -2,104 +2,104 @@ import struct
 
 import xcb.xproto, xcb.xcb, xcb.xinerama, xcb.randr
 
-class Connection(object):
-    _singleton = None
+conn = None
+setup = None
 
-    def __init__(self):
-        if Connection._singleton is not None:
-            raise Connection._singleton
+syms_to_codes = {}
+codes_to_syms = {}
 
-        self._conn = xcb.xcb.connect()
-        self._setup = self._conn.get_setup()
+def init():
+    global conn, setup
 
-        self._syms_to_codes = {}
-        self._codes_to_syms = {}
-        self._init_keymap()
+    conn = xcb.xcb.connect()
+    setup = conn.get_setup()
 
-    @staticmethod
-    def get_connection():
-        if Connection._singleton is None:
-            Connection._singleton = Connection()
+    init_keymap()
 
-        return Connection._singleton
+def init_keymap():
+    global setup, syms_to_codes, codes_to_syms
 
-    def disconnect(self):
-        self.get_conn().disconnect()
-        Connection._singleton = None
+    q = get_core().GetKeyboardMapping(
+        setup.min_keycode,
+        setup.max_keycode - setup.min_keycode + 1
+    ).reply()
 
-    def flush(self):
-        self.get_conn().flush()
+    kpc = q.keysyms_per_keycode
 
-    def get_conn(self):
-        return self._conn
+    for i, v in enumerate(q.keysyms):
+        keycode = (i / kpc) + setup.min_keycode
 
-    def get_core(self):
-        return self.get_conn().core
+        if v not in syms_to_codes:
+            syms_to_codes[v] = keycode
 
-    def get_extensions(self):
-        ret = []
-        exts = self.get_core().ListExtensions().reply()
-        for name in exts.names:
-            ret.append(''.join([chr(i) for i in name.name]).lower())
+        if keycode not in codes_to_syms:
+            codes_to_syms[keycode] = []
+        codes_to_syms[keycode].append(v)
 
-        return ret
+def disconnect():
+    global conn
 
-    def get_setup(self):
-        return self._setup
+    conn.disconnect()
 
-    def get_keycode(self, keysym):
-        return self._syms_to_codes[keysym]
+def flush():
+    global conn
 
-    def get_keysym(self, keycode):
-        return self._codes_to_syms[keycode][0]
+    conn.flush()
 
-    def xinerama_get_screens(self):
-        ret = []
+def get_core():
+    global conn
 
-        xinerama = self.get_conn()(xcb.xinerama.key)
-        screens = xinerama.QueryScreens().reply().screen_info
+    return conn.core
 
-        for screen in screens:
-            ret.append({
-                'x': screen.x_org,
-                'y': screen.y_org,
-                'width': screen.width,
-                'height': screen.height
-            })
+def get_extensions():
+    ret = []
+    exts = get_core().ListExtensions().reply()
+    for name in exts.names:
+        ret.append(''.join([chr(i) for i in name.name]).lower())
 
-        # For the RandR extension...
-        # I'm using nVidia TwinView... need to test this
-        #randr = self.get_conn()(xcb.randr.key)
-        #r_screens = randr.GetScreenResources(self.get_setup().roots[0].root).reply()
-        #for icrt in r_screens.crtcs:
-            #crt = randr.GetCrtcInfo(icrt, xcb.xcb.CurrentTime).reply()
-            #crt.x, crt.y, crt.width, crt.height
+    return ret
 
-        return ret
+def get_keycode(keysym):
+    global syms_to_codes
 
-    def _init_keymap(self):
-        q = self.get_core().GetKeyboardMapping(
-            self.get_setup().min_keycode,
-            self.get_setup().max_keycode - self.get_setup().min_keycode + 1
-        ).reply()
+    return syms_to_codes[keysym]
 
-        kpc = q.keysyms_per_keycode
+def get_keysym(keycode):
+    global codes_to_syms
 
-        for i, v in enumerate(q.keysyms):
-            keycode = (i / kpc) + self.get_setup().min_keycode
+    return codes_to_syms[keycode][0]
 
-            if v not in self._syms_to_codes:
-                self._syms_to_codes[v] = keycode
+def push():
+    flush()
+    xsync()
 
-            if keycode not in self._codes_to_syms:
-                self._codes_to_syms[keycode] = []
-            self._codes_to_syms[keycode].append(v)
+def xinerama_get_screens():
+    global conn, setup
 
-    def xsync(self):
-        self.get_core().GetInputFocus().reply()
+    ret = []
 
-    def push(self):
-        self.flush()
-        self.xsync()
+    xinerama = conn(xcb.xinerama.key)
+    screens = xinerama.QueryScreens().reply().screen_info
 
-XCONN = Connection.get_connection()
+    for screen in screens:
+        ret.append({
+            'x': screen.x_org,
+            'y': screen.y_org,
+            'width': screen.width,
+            'height': screen.height
+        })
+
+    # For the RandR extension...
+    # I'm using nVidia TwinView... need to test this
+    #randr = conn(xcb.randr.key)
+    #r_screens = randr.GetScreenResources(setup.roots[0].root).reply()
+    #for icrt in r_screens.crtcs:
+        #crt = randr.GetCrtcInfo(icrt, xcb.xcb.CurrentTime).reply()
+        #crt.x, crt.y, crt.width, crt.height
+
+    return ret
+
+def xsync():
+    get_core().GetInputFocus().reply()
+
+init()

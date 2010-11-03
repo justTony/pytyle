@@ -78,6 +78,7 @@ class Window(object):
         self.floating = False
         self.pytyle_moved_time = 0
         self.moving = False
+
         self.properties = {
             '_NET_WM_NAME': '',
             '_NET_WM_DESKTOP': '',
@@ -99,6 +100,12 @@ class Window(object):
 
     def activate(self):
         self._xwin.activate()
+
+    def decorations(self, toggle):
+        if toggle:
+            self._xwin.add_decorations()
+        else:
+            self._xwin.remove_decorations()
 
     def get_property(self, pname):
         assert pname in self.properties
@@ -178,7 +185,7 @@ class Window(object):
         if '_NET_WM_STATE_HIDDEN' in states:
             return False
 
-        winclass = self._xwin.get_property('WM_CLASS')
+        winclass = self._xwin.get_class()
 
         if winclass[0] in config.ignore:
             return False
@@ -192,47 +199,50 @@ class Window(object):
             self.set_monitor(new_mon.workspace.id, new_mon.id)
 
     def update_property(self, pname):
-        if pname in self.properties:
-            if pname == '_NET_WM_NAME':
-                self.name = self._xwin.get_name()
+        mname = 'update%s' % pname
+        if hasattr(self, mname):
+            m = getattr(self, mname)
+            m()
 
-                if not self.name:
-                    self.name = 'N/A'
+    def update_NET_WM_NAME(self):
+        self.properties['_NET_WM_NAME'] = self._xwin.get_name() or 'N/A'
+        self.name = self.properties['_NET_WM_NAME']
 
-                self.properties[pname] = self.name
-            elif pname == '_NET_FRAME_EXTENTS':
-                if self.container:
-                    self.container.fit_window()
+    def update_NET_FRAME_EXTENTS(self):
+        self.properties['_NET_FRAME_EXTENTS'] = self._xwin.get_frame_extents()
 
-                self.properties[pname] = self._xwin.get_frame_extents()
-            # This makes the window tile FIRST...
-            elif pname == '_NET_WM_DESKTOP':
-                self.properties[pname] = self._xwin.get_desktop_number()
+        if self.container:
+            self.container.fit_window()
 
-                self.load_geometry()
-                self.update_monitor()
-            elif pname == '_NET_WM_WINDOW_TYPE':
-                self.properties[pname] = self._xwin.get_types()
-            elif pname == '_NET_WM_STATE':
-                old = self.properties[pname]
-                new = self._xwin.get_states()
+    def update_NET_WM_DESKTOP(self):
+        self.properties['_NET_WM_DESKTOP'] = self._xwin.get_desktop_number()
 
-                # Update the property before continuing...
-                self.properties[pname] = new
+        self.load_geometry()
+        self.update_monitor()
 
-                removed = old - new
-                added = new - old
+    def update_NET_WM_WINDOW_TYPE(self):
+        self.properties['_NET_WM_WINDOW_TYPE'] = self._xwin.get_types()
 
-                if self.container:
-                    if '_OB_WM_STATE_UNDECORATED' in removed or '_OB_WM_STATE_UNDECORATED' in added:
-                        self.container.fit_window()
-                    elif '_NET_WM_STATE_HIDDEN' in added:
-                        self.container.tiler.remove(self)
-                elif self.monitor and self.monitor.get_tiler() and '_NET_WM_STATE_HIDDEN' in removed:
-                    time.sleep(0.2)
-                    self.monitor.get_tiler().add(self)
-            elif pname == '_NET_WM_ALLOWED_ACTIONS':
-                self.properties[pname] = self._xwin.get_allowed_actions()
+    def update_NET_WM_STATE(self):
+        old = self.properties['_NET_WM_STATE']
+        new = self._xwin.get_states()
+
+        self.properties['_NET_WM_STATE'] = new
+
+        removed = old - new
+        added = new - old
+
+        if self.container:
+            if '_OB_WM_STATE_UNDECORATED' in removed or '_OB_WM_STATE_UNDECORATED' in added:
+                self.container.fit_window()
+            elif '_NET_WM_STATE_HIDDEN' in added:
+                self.container.tiler.remove(self)
+        elif self.monitor and self.monitor.get_tiler() and '_NET_WM_STATE_HIDDEN' in removed:
+            time.sleep(0.2)
+            self.monitor.get_tiler().add(self)
+
+    def update_NET_WM_ALLOWED_ACTIONS(self):
+        self.properties['_NET_WM_ALLOWED_ACTIONS'] = self._xwin.get_allowed_actions()
 
     def __str__(self):
         length = 30

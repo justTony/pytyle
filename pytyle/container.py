@@ -1,13 +1,15 @@
+import ptxcb
+
 class Container(object):
-    CONTAINERS = {}
     idinc = 1
+    active = None
 
     @staticmethod
-    def lookup(cid):
-        if cid in Container.CONTAINERS:
-            return Container.CONTAINERS[cid]
-
-        return None
+    def manage_focus(win):
+        if win and win.container:
+            win.container.borders_activate(win.container.tiler.decor)
+        elif Container.active:
+            Container.active.borders_normal(Container.active.tiler.decor)
 
     def __init__(self, tiler, win):
         self.win = win
@@ -17,17 +19,65 @@ class Container(object):
 
         self.win.set_container(self)
 
-        Container.CONTAINERS[self.id] = self
         Container.idinc += 1
 
+        self._box = {
+            'htop': None, 'hbot': None,
+            'vleft': None, 'vright': None
+        }
+
     def activate(self):
-        self.win.activate()
+        if self.win:
+            self.win.activate()
+
+    def borders_activate(self, decor):
+        if Container.active and Container.active != self:
+            Container.active.borders_normal(Container.active.tiler.decor)
+
+        Container.active = self
+
+        if not decor:
+            self.box_show(0xff0000)
+
+    def borders_normal(self, decor):
+        if not decor:
+            self.box_show(0x008800)
+
+    def box_hide(self):
+        for box in self._box.values():
+            if box:
+                box.close()
+
+    def box_show(self, color=0x000000):
+        x, y, w, h = self.x, self.y, self.w, self.h
+
+        bw = 2
+
+        self.box_hide()
+
+        self._box['htop'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y, w, bw, color)
+        self._box['hbot'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y + h, w, bw, color)
+        self._box['vleft'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y, bw, h, color)
+        self._box['vright'] = ptxcb.LineWindow(self.tiler.workspace.id, x + w - bw, y, bw, h, color)
+
+    def decorations(self, decor, do_window=True):
+        if do_window and self.win:
+            self.win.decorations(decor)
+
+        if not decor:
+            if self == Container.active or (self.win and self.win.id == ptxcb.XROOT.get_active_window()):
+                self.borders_activate(decor)
+            else:
+                self.borders_normal(decor)
+        else:
+            self.box_hide()
 
     def detach(self, reset_window=False):
         if reset_window:
             self.win.original_state()
 
         self.win.set_container(None)
+        self.win.decorations(True)
         self.win = None
 
     def fit_window(self):
@@ -49,13 +99,24 @@ class Container(object):
         self.x, self.y, self.w, self.h = x, y, width, height
         self.fit_window()
 
+        self.decorations(self.tiler.decor)
+
     def remove(self, reset_window=False):
         self.detach(reset_window)
-        del Container.CONTAINERS[self.id]
+
+        self.box_hide()
+
+        if self == Container.active:
+            Container.active = None
 
     def switch(self, cont):
         self.win.container, cont.win.container = cont.win.container, self.win.container
         self.win, cont.win = cont.win, self.win
+
+        if Container.active == cont:
+            self.borders_activate(self.tiler.decor)
+        elif Container.active == self:
+            cont.borders_activate(cont.tiler.decor)
 
         self.fit_window()
         cont.fit_window()

@@ -28,16 +28,26 @@ class Tile(object):
         self.workspace = monitor.workspace
         self.monitor = monitor
         self.tiling = False
+        self.decor = True
 
     def enqueue(self, force_tiling=False):
         if self.tiling or force_tiling:
             Tile.queue.add(self)
 
-
     # Commands
     def tile(self):
         self.tiling = True
         self.monitor.tiler = self
+
+    def toggle_decorations(self):
+        self.decor = not self.decor
+
+        if self.decor:
+            self.borders_remove()
+        else:
+            self.borders_add()
+
+        Container.manage_focus(self.monitor.get_active())
 
     def untile(self):
         self.tiling = False
@@ -54,6 +64,24 @@ class AutoTile(Tile):
             cont = Container(self, win)
             self.store.add(cont)
             self.enqueue()
+
+    def borders_add(self, do_window=True):
+        if self.store:
+            for cont in self.store.all():
+                cont.decorations(False, do_window)
+
+    def borders_remove(self, do_window=True):
+        if self.store:
+            for cont in self.store.all():
+                cont.decorations(True, do_window)
+
+    def callback_hidden(self):
+        if not self.decor:
+            self.borders_remove(do_window=False)
+
+    def callback_visible(self):
+        if not self.decor:
+            self.borders_add(do_window=False)
 
     def detach(self):
         self.tiling = False

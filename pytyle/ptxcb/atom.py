@@ -2,7 +2,7 @@ import struct
 
 import xcb.xproto
 
-from connection import XCONN
+import connection
 from atoms import atoms
 
 class Atom:
@@ -12,10 +12,10 @@ class Atom:
     def build_cache():
         if not Atom._cache:
             for atom in atoms:
-                Atom._cache[atom] = XCONN.get_conn().core.InternAtom(True, len(atom), atom).reply().atom
+                Atom._cache[atom] = connection.get_core().InternAtom(True, len(atom), atom).reply().atom
 
                 if atoms[atom][0] is not None and atoms[atom][0] not in Atom._cache:
-                    Atom._cache[atoms[atom][0]] = XCONN.get_conn().core.InternAtom(True, len(atoms[atom][0]), atoms[atom][0]).reply().atom
+                    Atom._cache[atoms[atom][0]] = connection.get_core().InternAtom(True, len(atoms[atom][0]), atoms[atom][0]).reply().atom
 
     @staticmethod
     def get_atom(name):
@@ -23,13 +23,13 @@ class Atom:
             raise Exception('Atom cache has not been built')
 
         if name not in Atom._cache:
-            Atom._cache[name] = XCONN.get_conn().core.InternAtom(True, len(name), name).reply().atom
+            Atom._cache[name] = connection.get_core().InternAtom(True, len(name), name).reply().atom
 
         return Atom._cache[name]
 
     @staticmethod
     def get_atom_name(num):
-        return Atom.ords_to_str(XCONN.get_conn().core.GetAtomName(num).reply().name)
+        return Atom.ords_to_str(connection.get_core().GetAtomName(num).reply().name)
 
     @staticmethod
     def get_atom_type(name):

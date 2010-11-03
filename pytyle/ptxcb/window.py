@@ -2,8 +2,8 @@ import struct, traceback
 
 import xcb.xproto, xcb.xcb
 
+import connection
 from atom import Atom
-from connection import XCONN
 from events import events
 
 class Window(object):
@@ -17,305 +17,22 @@ class Window(object):
 
     def __init__(self, wid):
         self.wid = wid
-        self._box = {
-            'htop': None, 'hbot': None,
-            'vleft': None, 'vright': None
-        }
 
-    def listen(self):
-        self.set_event_masks(
-            xcb.xproto.EventMask.PropertyChange |
-            xcb.xproto.EventMask.FocusChange
-        )
-
-    def unlisten(self):
-        self.set_event_masks(0)
-
-    def query_pointer(self):
-        return XCONN.get_core().QueryPointer(self.wid).reply()
-
-    def button_pressed(self):
-        pointer = self.query_pointer()
-
-        if xcb.xproto.KeyButMask.Button1 & pointer.mask:
-            return True
-        return False
-
-    def query_tree_parent(self):
+    # Helpers
+    def _get_geometry(self):
         try:
-            return Window(XCONN.get_core().QueryTree(self.wid).reply().parent)
-        except:
-            return False
-
-    def query_tree_children(self):
-        try:
-            children = XCONN.get_core().QueryTree(self.wid).reply().children
-
-            return [wid for wid in children]
-        except:
-            return False
-
-    def activate(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_ACTIVE_WINDOW'),
-            [
-                2,
-                xcb.xcb.CurrentTime,
-                self.wid
-            ]
-        )
-        self.stack(True)
-
-    def get_name(self):
-        return self.get_property('_NET_WM_NAME')
-
-    def get_visible_name(self):
-        return self.get_property('_NET_WM_VISIBLE_NAME')
-
-    def get_desktop_number(self):
-        ret = self.get_property('_NET_WM_DESKTOP')[0]
-
-        if ret == 0xFFFFFFFF:
-            return 'all'
-
-        return ret
-
-    def get_types(self):
-        return set([Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_WINDOW_TYPE')])
-
-    def get_states(self):
-        return set([Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_STATE')])
-
-    def get_allowed_actions(self):
-        return set([Atom.get_atom_name(anum) for anum in self.get_property('_NET_WM_ALLOWED_ACTIONS')])
-
-    def get_strut(self):
-        raw = self.get_property('_NET_WM_STRUT')
-
-        if not raw:
-            return None
-
-        return {
-            'left': raw[0],
-            'right': raw[1],
-            'top': raw[2],
-            'bottom': raw[3]
-        }
-
-    def get_strut_partial(self):
-        raw = self.get_property('_NET_WM_STRUT_PARTIAL')
-
-        if not raw:
-            return None
-
-        return {
-            'left': raw[0], 'right': raw[1],
-            'top': raw[2], 'bottom': raw[3],
-            'left_start_y': raw[4], 'left_end_y': raw[5],
-            'right_start_y': raw[6], 'right_end_y': raw[7],
-            'top_start_x': raw[8], 'top_end_x': raw[9],
-            'bottom_start_x': raw[10], 'bottom_end_x': raw[11]
-        }
-
-    def get_user_time(self):
-        return self.get_property('_NET_WM_USER_TIME')[0]
-
-    def get_frame_extents(self):
-        raw = self.get_property('_NET_FRAME_EXTENTS')
-
-        if raw:
-            return {
-                'left': raw[0],
-                'right': raw[1],
-                'top': raw[2],
-                'bottom': raw[3]
-            }
-        else:
-            return {
-                'left': 0, 'right': 0,
-                'top': 0, 'bottom': 0
-            }
-
-    def maximize(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_WM_STATE'),
-            [
-                1, # _NET_WM_STATE_REMOVE = 0, _NET_WM_STATE_ADD = 1, _NET_WM_STATE_TOGGLE = 2
-                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_VERT'),
-                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
-            ]
-        )
-
-        XCONN.push()
-
-    def restore(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_WM_STATE'),
-            [
-                0, # _NET_WM_STATE_REMOVE = 0, _NET_WM_STATE_ADD = 1, _NET_WM_STATE_TOGGLE = 2
-                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_VERT'),
-                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
-            ]
-        )
-
-        XCONN.push()
-
-    def send_to_desktop(self, desktop_num):
-        self.send_client_event(Atom.get_atom('_NET_WM_DESKTOP'), [desktop_num])
-
-    def restack(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_RESTACK_WINDOW'),
-            [
-                2,
-                self.wid,
-                0
-            ]
-        )
-
-    def stack(self, above):
-        try:
-            XCONN.get_core().ConfigureWindow(
-                self.wid,
-                xcb.xproto.ConfigWindow.StackMode,
-                [xcb.xproto.StackMode.Above if above else xcb.xproto.StackMode.Below]
-            )
-        except:
-            return False
-
-    def get_raw_geometry(self):
-        try:
-            raw = XCONN.get_core().GetGeometry(self.wid).reply()
+            raw = connection.get_core().GetGeometry(self.wid).reply()
 
             return (raw.x, raw.y, raw.width, raw.height)
         except:
             return False
 
-    def get_geometry(self):
-        try:
-            # Need to move up two parents to get proper coordinates and size
-            if XROOT.wm() == 'kwin':
-                x, y, w, h = self.query_tree_parent().query_tree_parent().get_raw_geometry()
-            else:
-                x, y, w, h = self.query_tree_parent().get_raw_geometry()
-
-            return (
-                x,
-                y,
-                w,
-                h
-            )
-        except:
-            return False
-
-    def moveresize(self, x, y, width, height):
-        Window.queue.append(
-            (Window._moveresize, self, x, y, width, height)
-        )
-
-    def _moveresize(self, x, y, width, height):
-        try:
-            # KWin reports _NET_FRAME_EXTENTS correctly...
-            if XROOT.wm() == 'kwin':
-                borders = self.get_frame_extents()
-
-                rx, ry, rwidth, rheight = self.get_raw_geometry()
-                px, py, pwidth, pheight = self.get_geometry()
-
-                w = width - (borders['left'] + borders['right'])
-                h = height - (borders['top'] + borders['bottom'])
-            else:
-                rx, ry, rwidth, rheight = self.get_raw_geometry()
-                px, py, pwidth, pheight = self.get_geometry()
-
-                w = width - (pwidth - rwidth)
-                h = height - (pheight - rheight)
-
-            x = 0 if x < 0 else x
-            y = 0 if y < 0 else y
-            w = 1 if w <= 0 else w
-            h = 1 if h <= 0 else h
-
-            self.raw_moveresize(x, y, w, h)
-        except:
-            return False
-
-    def raw_moveresize(self, x, y, width, height):
-        self.send_client_event(
-            Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
-            [
-                xcb.xproto.Gravity.NorthWest | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
-                x,
-                y,
-                width,
-                height
-            ],
-            32,
-            xcb.xproto.EventMask.StructureNotify
-        )
-
-        XCONN.push()
-
-    def close(self):
-        self.send_client_event(
-            Atom.get_atom('_NET_CLOSE_WINDOW'),
-            [
-                xcb.xproto.Time.CurrentTime,
-                2,
-                0,
-                0,
-                0
-            ]
-        )
-
-    def add_decorations(self):
-        if XROOT.wm() == 'openbox':
-            self.send_client_event(
-                Atom.get_atom('_NET_WM_STATE'),
-                [
-                    0,
-                    Atom.get_atom('_OB_WM_STATE_UNDECORATED')
-                ]
-            )
-        else:
-            self.set_property('_MOTIF_WM_HINTS', [2, 0, 1, 0, 0])
-
-        XCONN.push()
-
-    def remove_decorations(self):
-        if XROOT.wm() == 'openbox':
-            self.send_client_event(
-                Atom.get_atom('_NET_WM_STATE'),
-                [
-                    1,
-                    Atom.get_atom('_OB_WM_STATE_UNDECORATED')
-                ]
-            )
-        else:
-            self.set_property('_MOTIF_WM_HINTS', [2, 0, 0, 0, 0])
-
-        XCONN.push()
-
-    def box(self):
-        x, y, w, h = self.get_geometry()
-
-        bw = 5
-
-        self._box['htop'] = LineWindow(x, y, w, bw)
-        self._box['hbot'] = LineWindow(x, y + h, w + bw, bw)
-        self._box['vleft'] = LineWindow(x, y, bw, h)
-        self._box['vright'] = LineWindow(x + w, y, bw, h)
-
-    def unbox(self):
-        for box in self._box.values():
-            box.close()
-
-    def get_property(self, atom_name):
+    def _get_property(self, atom_name):
         try:
             if not Atom.get_type_name(atom_name):
                 return ''
 
-            rsp = XCONN.get_core().GetProperty(
+            rsp = connection.get_core().GetProperty(
                 False,
                 self.wid,
                 Atom.get_atom(atom_name),
@@ -333,10 +50,27 @@ class Window(object):
         except:
             pass
 
-    def send_client_event(self, message_type, data, format=32, event_mask=xcb.xproto.EventMask.SubstructureRedirect):
-        XROOT.send_event(self.wid, message_type, data, format, event_mask)
+    def _moveresize(self, x, y, width, height):
+        self._send_client_event(
+            Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
+            [
+                xcb.xproto.Gravity.NorthWest
+                | 1 << 8 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 13,
+                x,
+                y,
+                width,
+                height
+            ],
+            32,
+            xcb.xproto.EventMask.StructureNotify
+        )
 
-    def send_event(self, to_wid, message_type, data, format=32, event_mask=xcb.xproto.EventMask.SubstructureRedirect):
+        connection.push()
+
+    def _send_client_event(self, message_type, data, format=32, event_mask=xcb.xproto.EventMask.SubstructureRedirect):
+        XROOT._send_client_event_exec(self.wid, message_type, data, format, event_mask)
+
+    def _send_client_event_exec(self, to_wid, message_type, data, format=32, event_mask=xcb.xproto.EventMask.SubstructureRedirect):
         try:
             data = data + ([0] * (5 - len(data)))
             packed = struct.pack(
@@ -349,7 +83,7 @@ class Window(object):
                 data[0], data[1], data[2], data[3], data[4]
             )
 
-            XCONN.get_core().SendEvent(
+            connection.get_core().SendEvent(
                 False,
                 self.wid,
                 event_mask,
@@ -358,95 +92,17 @@ class Window(object):
         except:
             print traceback.format_exc()
 
-    def set_event_masks(self, event_masks):
-        try:
-            XCONN.get_core().ChangeWindowAttributes(
-                self.wid,
-                xcb.xproto.CW.EventMask,
-                [event_masks]
-            )
-        except:
-            print traceback.format_exc()
-
-    def set_override_redirect(self, override_redirect):
-        try:
-            XCONN.get_core().ChangeWindowAttributes(
-                self.wid,
-                xcb.xproto.CW.OverrideRedirect,
-                [override_redirect]
-            )
-        except:
-            print traceback.format_exc()
-
-    def grab_key(self, key, modifiers):
-        try:
-            addmods = [
-                0,
-                xcb.xproto.ModMask.Lock,
-                xcb.xproto.ModMask._2,
-                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
-            ]
-
-            for mod in addmods:
-                XCONN.get_core().GrabKey(
-                    True,
-                    self.wid,
-                    modifiers | mod,
-                    key,
-                    xcb.xproto.GrabMode.Async,
-                    xcb.xproto.GrabMode.Async
-                )
-        except:
-            print traceback.format_exc()
-            print 'Could not grab key:', modifiers, '---', key
-
-    def ungrab_key(self, key, modifiers):
-        try:
-            addmods = [
-                0,
-                xcb.xproto.ModMask.Lock,
-                xcb.xproto.ModMask._2,
-                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
-            ]
-
-            for mod in addmods:
-                XCONN.get_core().UngrabKey(
-                    key,
-                    self.wid,
-                    modifiers | mod,
-                )
-        except:
-            print traceback.format_exc()
-            print 'Could not ungrab key:', modifiers, '---', key
-
-    def grab_button(self, key, modifiers=xcb.xproto.ModMask.Any):
-        try:
-            XCONN.get_core().GrabButton(
-                True,
-                self.wid,
-                xcb.xproto.EventMask.ButtonPress,
-                xcb.xproto.GrabMode.Async,
-                xcb.xproto.GrabMode.Async,
-                0,
-                0,
-                key,
-                modifiers
-            )
-        except:
-            print traceback.format_exc()
-            print 'Could not grab button:', modifiers, '---', key
-
-    # Not currently used
-    def set_property(self, atom_name, value):
+    def _set_property(self, atom_name, value):
         try:
             if isinstance(value, list):
                 data = struct.pack(len(value) * 'I', *value)
                 data_len = len(value)
             else:
+                value = str(value)
                 data_len = len(value)
                 data = value
 
-            XCONN.get_conn().core.ChangeProperty(
+            connection.get_core().ChangeProperty(
                 xcb.xproto.PropMode.Replace,
                 self.wid,
                 Atom.get_atom(atom_name),
@@ -458,15 +114,330 @@ class Window(object):
         except:
             print traceback.format_exc()
 
+    def activate(self):
+        self._send_client_event(
+            Atom.get_atom('_NET_ACTIVE_WINDOW'),
+            [
+                2,
+                xcb.xcb.CurrentTime,
+                self.wid
+            ]
+        )
+        self.stack(True)
+
+    def add_decorations(self):
+        if XROOT.wm() == 'openbox':
+            self._send_client_event(
+                Atom.get_atom('_NET_WM_STATE'),
+                [
+                    0,
+                    Atom.get_atom('_OB_WM_STATE_UNDECORATED')
+                ]
+            )
+        else:
+            self._set_property('_MOTIF_WM_HINTS', [2, 0, 1, 0, 0])
+
+        connection.push()
+
+    def button_pressed(self):
+        pointer = self.query_pointer()
+
+        if xcb.xproto.KeyButMask.Button1 & pointer.mask:
+            return True
+        return False
+
+    def close(self):
+        self._send_client_event(
+            Atom.get_atom('_NET_CLOSE_WINDOW'),
+            [
+                xcb.xproto.Time.CurrentTime,
+                2,
+                0,
+                0,
+                0
+            ]
+        )
+
+    def get_allowed_actions(self):
+        return set([Atom.get_atom_name(anum) for anum in self._get_property('_NET_WM_ALLOWED_ACTIONS')])
+
+    def get_class(self):
+        return self._get_property('WM_CLASS')
+
+    def get_desktop_number(self):
+        ret = self._get_property('_NET_WM_DESKTOP')[0]
+
+        if ret == 0xFFFFFFFF:
+            return 'all'
+
+        return ret
+
+    def get_geometry(self):
+        try:
+            # Need to move up two parents to get proper coordinates
+            # and size for KWin
+            if XROOT.wm() == 'kwin':
+                x, y, w, h = self.query_tree_parent().query_tree_parent()._get_geometry()
+            else:
+                x, y, w, h = self.query_tree_parent()._get_geometry()
+
+            return (
+                x,
+                y,
+                w,
+                h
+            )
+        except:
+            return False
+
+    def get_name(self):
+        return self._get_property('_NET_WM_NAME')
+
+    def get_states(self):
+        return set([Atom.get_atom_name(anum) for anum in self._get_property('_NET_WM_STATE')])
+
+    def get_strut(self):
+        raw = self._get_property('_NET_WM_STRUT')
+
+        if not raw:
+            return None
+
+        return {
+            'left': raw[0],
+            'right': raw[1],
+            'top': raw[2],
+            'bottom': raw[3]
+        }
+
+    def get_strut_partial(self):
+        raw = self._get_property('_NET_WM_STRUT_PARTIAL')
+
+        if not raw:
+            return None
+
+        return {
+            'left': raw[0], 'right': raw[1],
+            'top': raw[2], 'bottom': raw[3],
+            'left_start_y': raw[4], 'left_end_y': raw[5],
+            'right_start_y': raw[6], 'right_end_y': raw[7],
+            'top_start_x': raw[8], 'top_end_x': raw[9],
+            'bottom_start_x': raw[10], 'bottom_end_x': raw[11]
+        }
+
+    def get_types(self):
+        return set([Atom.get_atom_name(anum) for anum in self._get_property('_NET_WM_WINDOW_TYPE')])
+
+    def get_visible_name(self):
+        return self._get_property('_NET_WM_VISIBLE_NAME')
+
+    def get_frame_extents(self):
+        raw = self._get_property('_NET_FRAME_EXTENTS')
+
+        if raw:
+            return {
+                'left': raw[0],
+                'right': raw[1],
+                'top': raw[2],
+                'bottom': raw[3]
+            }
+        else:
+            return {
+                'left': 0, 'right': 0,
+                'top': 0, 'bottom': 0
+            }
+
+    def grab_key(self, key, modifiers):
+        try:
+            addmods = [
+                0,
+                xcb.xproto.ModMask.Lock,
+                xcb.xproto.ModMask._2,
+                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
+            ]
+
+            for mod in addmods:
+                connection.get_core().GrabKey(
+                    True,
+                    self.wid,
+                    modifiers | mod,
+                    key,
+                    xcb.xproto.GrabMode.Async,
+                    xcb.xproto.GrabMode.Async
+                )
+        except:
+            print traceback.format_exc()
+            print 'Could not grab key:', modifiers, '---', key
+
+    def listen(self):
+        self.set_event_masks(
+            xcb.xproto.EventMask.PropertyChange |
+            xcb.xproto.EventMask.FocusChange
+        )
+
+    def maximize(self):
+        self._send_client_event(
+            Atom.get_atom('_NET_WM_STATE'),
+            [
+                1, # _NET_WM_STATE_REMOVE = 0, _NET_WM_STATE_ADD = 1, _NET_WM_STATE_TOGGLE = 2
+                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_VERT'),
+                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
+            ]
+        )
+
+        connection.push()
+
+    def moveresize(self, x, y, width, height):
+        Window.queue.append(
+            (Window.moveresize_exec, self, x, y, width, height)
+        )
+
+    def moveresize_exec(self, x, y, width, height):
+        try:
+            # KWin reports _NET_FRAME_EXTENTS correctly...
+            if XROOT.wm() == 'kwin':
+                borders = self.get_frame_extents()
+
+                w = width - (borders['left'] + borders['right'])
+                h = height - (borders['top'] + borders['bottom'])
+            else:
+                rx, ry, rwidth, rheight = self._get_geometry()
+                px, py, pwidth, pheight = self.get_geometry()
+
+                w = width - (pwidth - rwidth)
+                h = height - (pheight - rheight)
+
+            x = 0 if x < 0 else x
+            y = 0 if y < 0 else y
+            w = 1 if w <= 0 else w
+            h = 1 if h <= 0 else h
+
+            self._moveresize(x, y, w, h)
+        except:
+            return False
+
+    def query_pointer(self):
+        return connection.get_core().QueryPointer(self.wid).reply()
+
+    def query_tree_children(self):
+        try:
+            children = connection.get_core().QueryTree(self.wid).reply().children
+
+            return [wid for wid in children]
+        except:
+            return False
+
+    def query_tree_parent(self):
+        try:
+            return Window(connection.get_core().QueryTree(self.wid).reply().parent)
+        except:
+            return False
+
+    def remove_decorations(self):
+        if XROOT.wm() == 'openbox':
+            self._send_client_event(
+                Atom.get_atom('_NET_WM_STATE'),
+                [
+                    1,
+                    Atom.get_atom('_OB_WM_STATE_UNDECORATED')
+                ]
+            )
+        else:
+            self._set_property('_MOTIF_WM_HINTS', [2, 0, 0, 0, 0])
+
+        connection.push()
+
+    def restack(self):
+        self._send_client_event(
+            Atom.get_atom('_NET_RESTACK_WINDOW'),
+            [
+                2,
+                self.wid,
+                0
+            ]
+        )
+
+    def restore(self):
+        self._send_client_event(
+            Atom.get_atom('_NET_WM_STATE'),
+            [
+                0, # _NET_WM_STATE_REMOVE = 0, _NET_WM_STATE_ADD = 1, _NET_WM_STATE_TOGGLE = 2
+                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_VERT'),
+                Atom.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ')
+            ]
+        )
+
+        connection.push()
+
+    def stack(self, above):
+        try:
+            connection.get_core().ConfigureWindow(
+                self.wid,
+                xcb.xproto.ConfigWindow.StackMode,
+                [xcb.xproto.StackMode.Above if above else xcb.xproto.StackMode.Below]
+            )
+        except:
+            return False
+
+    def set_desktop(self, desk):
+        self._send_client_event(
+            Atom.get_atom('_NET_WM_DESKTOP'),
+            [
+                desk,
+                2
+            ]
+        )
+
+    def set_event_masks(self, event_masks):
+        try:
+            connection.get_core().ChangeWindowAttributes(
+                self.wid,
+                xcb.xproto.CW.EventMask,
+                [event_masks]
+            )
+        except:
+            print traceback.format_exc()
+
+    def set_override_redirect(self, override_redirect):
+        try:
+            connection.get_core().ChangeWindowAttributes(
+                self.wid,
+                xcb.xproto.CW.OverrideRedirect,
+                [override_redirect]
+            )
+        except:
+            print traceback.format_exc()
+
+    def ungrab_key(self, key, modifiers):
+        try:
+            addmods = [
+                0,
+                xcb.xproto.ModMask.Lock,
+                xcb.xproto.ModMask._2,
+                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
+            ]
+
+            for mod in addmods:
+                connection.get_core().UngrabKey(
+                    key,
+                    self.wid,
+                    modifiers | mod,
+                )
+        except:
+            print traceback.format_exc()
+            print 'Could not ungrab key:', modifiers, '---', key
+
+    def unlisten(self):
+        self.set_event_masks(0)
+
 class LineWindow(Window):
-    def __init__(self, x, y, width, height):
-        self._root_depth = XCONN.get_setup().roots[0].root_depth
-        self._root_visual = XCONN.get_setup().roots[0].root_visual
-        self._pixel = XCONN.get_setup().roots[0].black_pixel
+    def __init__(self, wsid, x, y, width, height, color=0x000000):
+        self._root_depth = connection.setup.roots[0].root_depth
+        self._root_visual = connection.setup.roots[0].root_visual
+        self._pixel = color
 
-        self.wid  = XCONN.get_conn().generate_id()
+        self.wid  = connection.conn.generate_id()
 
-        XCONN.get_core().CreateWindow(
+        connection.get_core().CreateWindow(
             self._root_depth,
             self.wid,
             XROOT.wid,
@@ -482,51 +453,15 @@ class LineWindow(Window):
         )
 
         self.set_override_redirect(True)
-        self.set_property('_NET_WM_NAME', 'Internal PyTyle Window')
-        #self.set_property('_NET_WM_WINDOW_TYPE', [Atom.get_atom('_NET_WM_WINDOW_TYPE_NORMAL')])
-        #self.set_property('_NET_WM_STATE', [
-            #Atom.get_atom('_OB_WM_STATE_UNDECORATED'),
-            #Atom.get_atom('_NET_WM_STATE_SKIP_TASKBAR'),
-            #Atom.get_atom('_NET_WM_STATE_SKIP_PAGER'),
-            #Atom.get_atom('_NET_WM_STATE_ABOVE'),
-            #Atom.get_atom('_NET_WM_STATE_HIDDEN')
-        #])
-        #self.set_property('_MOTIF_WM_HINTS', [2, 0, 0, 0, 0])
-
-        XCONN.get_core().MapWindow(self.wid)
-        #self.raw_moveresize(x, y, width, height)
-
-        #self.send_client_event(
-            #Atom.get_atom('_NET_WM_STATE'),
-            #[
-                #0,
-                #Atom.get_atom('_NET_WM_STATE_HIDDEN')
-            #]
-        #)
-
-        XCONN.push()
+        self._set_property('_NET_WM_NAME', 'Internal PyTyle Window')
+        connection.get_core().MapWindow(self.wid)
+        connection.push()
 
     def close(self):
-        XCONN.get_core().UnmapWindow(self.wid)
+        connection.get_core().UnmapWindow(self.wid)
 
 class RootWindow(Window):
     _singleton = None
-
-    def __init__(self):
-        if RootWindow._singleton is not None:
-            raise RootWindow._singleton
-
-        self.wid = XCONN.get_setup().roots[0].root
-        Atom.build_cache()
-        self.windows = set()
-
-        self.listen()
-
-    def listen(self):
-        self.set_event_masks(
-            xcb.xproto.EventMask.SubstructureNotify |
-            xcb.xproto.EventMask.PropertyChange
-        )
 
     @staticmethod
     def get_root_window():
@@ -535,61 +470,32 @@ class RootWindow(Window):
 
         return RootWindow._singleton
 
-    def get_name(self):
-        return 'ROOT'
+    def __init__(self):
+        if RootWindow._singleton is not None:
+            raise RootWindow._singleton
 
-    def get_visible_name(self):
-        return self.get_name()
+        self.wid = connection.setup.roots[0].root
+        Atom.build_cache()
+        self.windows = set()
 
-    def get_supported_hints(self):
-        return [Atom.get_atom_name(anum) for anum in self.get_property('_NET_SUPPORTED')]
+        self.listen()
 
-    def get_window_ids(self):
-        return self.get_property('_NET_CLIENT_LIST')
+    def get_active_window(self):
+        return self._get_property('_NET_ACTIVE_WINDOW')[0]
 
-    def get_number_of_desktops(self):
-        return self.get_property('_NET_NUMBER_OF_DESKTOPS')[0]
+    def get_current_desktop(self):
+        return self._get_property('_NET_CURRENT_DESKTOP')[0]
 
     def get_desktop_geometry(self):
-        raw = self.get_property('_NET_DESKTOP_GEOMETRY')
+        raw = self._get_property('_NET_DESKTOP_GEOMETRY')
 
         return {
             'width': raw[0],
             'height': raw[1]
         }
 
-    def get_desktop_viewport(self):
-        return self.get_property('_NET_DESKTOP_VIEWPORT')
-
-    def get_current_desktop(self):
-        return self.get_property('_NET_CURRENT_DESKTOP')[0]
-
-    def get_desktop_names(self):
-        return self.get_property('_NET_DESKTOP_NAMES')
-
-    def get_active_window(self):
-        return self.get_property('_NET_ACTIVE_WINDOW')[0]
-
-    def get_workarea(self):
-        raw = self.get_property('_NET_WORKAREA')
-        ret = []
-
-        for i in range(len(raw) / 4):
-            i *= 4
-            ret.append({
-                'x': raw[i + 0],
-                'y': raw[i + 1],
-                'width': raw[i + 2],
-                'height': raw[i + 3]
-            })
-
-        return ret
-
-    def get_window_manager_name(self):
-        return Window(self.get_property('_NET_SUPPORTING_WM_CHECK')[0]).get_name().lower()
-
     def get_desktop_layout(self):
-        raw = self.get_property('_NET_DESKTOP_LAYOUT')
+        raw = self._get_property('_NET_DESKTOP_LAYOUT')
 
         return {
             # _NET_WM_ORIENTATION_HORZ = 0
@@ -603,15 +509,60 @@ class RootWindow(Window):
             'starting_corner': raw[3]
         }
 
-    def is_showing_desktop(self):
-        if self.get_property('_NET_SHOWING_DESKTOP')[0] == 1:
-            return True
-        return False
+    def get_desktop_names(self):
+        return self._get_property('_NET_DESKTOP_NAMES')
+
+    def get_desktop_viewport(self):
+        return self._get_property('_NET_DESKTOP_VIEWPORT')
+
+    def get_name(self):
+        return 'ROOT'
+
+    def get_number_of_desktops(self):
+        return self._get_property('_NET_NUMBER_OF_DESKTOPS')[0]
 
     def get_pointer_position(self):
         raw = self.query_pointer()
 
         return (raw.root_x, raw.root_y)
+
+    def get_supported_hints(self):
+        return [Atom.get_atom_name(anum) for anum in self._get_property('_NET_SUPPORTED')]
+
+    def get_visible_name(self):
+        return self.get_name()
+
+    def get_window_ids(self):
+        return self._get_property('_NET_CLIENT_LIST')
+
+    def get_window_manager_name(self):
+        return Window(self._get_property('_NET_SUPPORTING_WM_CHECK')[0]).get_name().lower()
+
+    def get_workarea(self):
+        raw = self._get_property('_NET_WORKAREA')
+        ret = []
+
+        for i in range(len(raw) / 4):
+            i *= 4
+            ret.append({
+                'x': raw[i + 0],
+                'y': raw[i + 1],
+                'width': raw[i + 2],
+                'height': raw[i + 3]
+            })
+
+        return ret
+
+    def is_showing_desktop(self):
+        if self._get_property('_NET_SHOWING_DESKTOP')[0] == 1:
+            return True
+        return False
+
+    def listen(self):
+        self.set_event_masks(
+            xcb.xproto.EventMask.SubstructureNotify |
+            xcb.xproto.EventMask.PropertyChange
+        )
 
     def wm(self):
         return self.get_window_manager_name()

@@ -5,228 +5,245 @@ import ptxcb
 from window import Window
 from monitor import Monitor
 from workspace import Workspace
+from container import Container
 
-class State(object):
-    _singleton = None
+_ACTIVE = None
+pointer_grab = False
+moving = False
+properties = {}
+xinerama = ptxcb.connection.xinerama_get_screens()
 
-    @staticmethod
-    def get_state():
-        if State._singleton is None:
-            State._singleton = State()
+def init():
+    reset_properties()
+    load_properties()
 
-        return State._singleton
+def get_active():
+    global _ACTIVE
 
-    def __init__(self):
-        if State._singleton is not None:
-            raise State._singleton
+    return _ACTIVE
 
-        self._ACTIVE = None
-        self.pointer_grab = False
-        self.moving = False
-        self.xinerama = ptxcb.XCONN.xinerama_get_screens()
+def get_active_monitor():
+    wsid, mid = get_active_wsid_and_mid()
 
-        self.reset_properties()
+    return get_monitor(wsid, mid)
 
-        self.load_properties()
+def get_active_wsid_and_mid():
+    wsid = -1
+    mid = -1
+    win = get_active()
 
-    def get_active(self):
-        return self._ACTIVE
+    if win:
+        wsid = win.monitor.workspace.id
+        mid = win.monitor.id
+    else:
+        wsid, mid = get_pointer_wsid_and_mid()
 
-    def get_active_monitor(self):
-        wsid, mid = self.get_active_wsid_and_mid()
+    return (wsid, mid)
 
-        return self.get_monitor(wsid, mid)
+def get_monitor(wsid, mid):
+    return Workspace.WORKSPACES[wsid].get_monitor(mid)
 
-    def get_active_wsid_and_mid(self):
-        wsid = -1
-        mid = -1
-        win = self.get_active()
+def get_pointer_wsid_and_mid():
+    wsid = -1
+    mid = -1
 
-        if win:
-            wsid = win.monitor.workspace.id
-            mid = win.monitor.id
-        else:
-            px, py = ptxcb.XROOT.get_pointer_position()
-            wsid = ptxcb.XROOT.get_current_desktop()
+    px, py = ptxcb.XROOT.get_pointer_position()
+    wsid = properties['_NET_CURRENT_DESKTOP']
+
+    for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+        if mon.contains(px, py):
+            mid = mon.id
+            break
+
+    return wsid, mid
+
+def iter_tilers(workspaces=None, monitors=None):
+    if isinstance(workspaces, int):
+        workspaces = [workspaces]
+
+    if isinstance(monitors, int):
+        monitors = [monitors]
+
+    for wsid in Workspace.WORKSPACES:
+        if workspaces is None or wsid in workspaces:
+            for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+                if monitors is None or mon.id in monitors:
+                    tiler = mon.get_tiler()
+
+                    if tiler and tiler.tiling:
+                        yield tiler
+
+def iter_windows(workspaces=None, monitors=None):
+    if isinstance(workspaces, int):
+        workspaces = [workspaces]
+
+    if isinstance(monitors, int):
+        monitors = [monitors]
+
+    for wsid in Workspace.WORKSPACES:
+        if workspaces is None or wsid in workspaces:
+            for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+                if monitors is None or mon.id in monitors:
+                    for win in mon.iter_windows():
+                        yield win
+
+def load_properties():
+    property_order = [
+        '_NET_CURRENT_DESKTOP',
+        '_NET_NUMBER_OF_DESKTOPS',
+        '_NET_WORKAREA',
+        '_NET_CLIENT_LIST',
+        '_NET_ACTIVE_WINDOW',
+    ]
+
+    for pname in property_order:
+        update_property(pname)
+
+def print_hierarchy(workspaces=None, monitors=None):
+    if isinstance(workspaces, int):
+        workspaces = [workspaces]
+
+    if isinstance(monitors, int):
+        monitors = [monitors]
+
+    for wsid in Workspace.WORKSPACES:
+        if workspaces is None or wsid in workspaces:
+            print Workspace.WORKSPACES[wsid]
 
             for mon in Workspace.WORKSPACES[wsid].iter_monitors():
-                if mon.contains(px, py):
-                    mid = mon.id
-                    break
+                if monitors is None or mon.id in monitors:
+                    print '\t%s' % mon
 
-        return (wsid, mid)
+                    for win in mon.windows:
+                        print '\t\t%s' % win
 
-    def get_monitor(self, wsid, mid):
-        return Workspace.WORKSPACES[wsid].get_monitor(mid)
+def reset_properties():
+    global properties
 
-    def iter_tilers(self, workspaces=None, monitors=None):
-        if isinstance(workspaces, int):
-            workspaces = [workspaces]
+    properties = {
+        '_NET_ACTIVE_WINDOW': '',
+        '_NET_CLIENT_LIST': set(),
+        '_NET_WORKAREA': [],
+        '_NET_NUMBER_OF_DESKTOPS': 0,
+        '_NET_DESKTOP_GEOMETRY': {},
+        '_NET_CURRENT_DESKTOP': -1,
+    }
 
-        if isinstance(monitors, int):
-            monitors = [monitors]
+def set_active(wid):
+    global _ACTIVE
 
-        for wsid in Workspace.WORKSPACES:
-            if workspaces is None or wsid in workspaces:
-                for mon in Workspace.WORKSPACES[wsid].iter_monitors():
-                    if monitors is None or mon.id in monitors:
-                        tiler = mon.get_tiler()
+    if wid in Window.WINDOWS:
+        _ACTIVE = Window.WINDOWS[wid]
+    else:
+        _ACTIVE = None
 
-                        if tiler and tiler.tiling:
-                            yield tiler
+def update_property(pname):
+    mname = 'update%s' % pname
+    gs = globals()
 
-    def iter_windows(self, workspaces=None, monitors=None):
-        if isinstance(workspaces, int):
-            workspaces = [workspaces]
+    if mname in gs:
+        m = gs[mname]
+        m()
 
-        if isinstance(monitors, int):
-            monitors = [monitors]
+def update_NET_ACTIVE_WINDOW():
+    global properties
 
-        for wsid in Workspace.WORKSPACES:
-            if workspaces is None or wsid in workspaces:
-                for mon in Workspace.WORKSPACES[wsid].iter_monitors():
-                    if monitors is None or mon.id in monitors:
-                        for win in mon.iter_windows():
-                            yield win
+    set_active(ptxcb.XROOT.get_active_window())
 
-    def load_properties(self):
-        property_order = [
-            '_NET_NUMBER_OF_DESKTOPS',
-            '_NET_WORKAREA',
-            '_NET_CLIENT_LIST',
-            '_NET_ACTIVE_WINDOW',
-        ]
+    properties['_NET_ACTIVE_WINDOW'] = get_active()
 
-        for pname in property_order:
-            self.update_property(pname)
+    active = get_active()
+    if active and active.monitor:
+        active.monitor.active = active
 
-    def net_client_list_changes(self, old, new):
-        added = []
-        removed = []
+    Container.manage_focus(active)
 
+def update_NET_CLIENT_LIST():
+    global properties
+
+    old = properties['_NET_CLIENT_LIST']
+    new = set(ptxcb.XROOT.get_window_ids())
+
+    properties['_NET_CLIENT_LIST'] = new
+
+    if old != new:
         for wid in new.difference(old):
-            win = Window.add(wid)
-
-            if win:
-                added.append(win)
+            Window.add(wid)
 
         for wid in old.difference(new):
-            win = Window.remove(wid)
+            Window.remove(wid)
 
-            if win:
-                removed.append(win)
+def update_NET_CURRENT_DESKTOP():
+    global properties
 
-        return added, removed
+    old = properties['_NET_CURRENT_DESKTOP']
+    properties['_NET_CURRENT_DESKTOP'] = ptxcb.XROOT.get_current_desktop()
 
-    def print_hierarchy(self, workspaces=None, monitors=None):
-        if isinstance(workspaces, int):
-            workspaces = [workspaces]
+    if old != properties['_NET_CURRENT_DESKTOP']:
+        Container.active = None
 
-        if isinstance(monitors, int):
-            monitors = [monitors]
+        for tiler in iter_tilers(old):
+            tiler.callback_hidden()
 
-        for wsid in Workspace.WORKSPACES:
-            if workspaces is None or wsid in workspaces:
-                print Workspace.WORKSPACES[wsid]
+        for tiler in iter_tilers(properties['_NET_CURRENT_DESKTOP']):
+            tiler.callback_visible()
 
-                for mon in Workspace.WORKSPACES[wsid].iter_monitors():
-                    if monitors is None or mon.id in monitors:
-                        print '\t%s' % mon
+def update_NET_WORKAREA():
+    global properties
 
-                        for win in mon.windows:
-                            print '\t\t%s' % win
+    properties['_NET_WORKAREA'] = ptxcb.XROOT.get_workarea()
 
-    def refresh_active(self):
-        self.set_active(ptxcb.XROOT.get_active_window())
+    for mon in Workspace.iter_all_monitors():
+        mon.calculate_workarea()
 
-        active = self.get_active()
+def update_NET_NUMBER_OF_DESKTOPS():
+    global properties, xinerama
 
-        if active:
-            active.monitor.active = active
+    old = properties['_NET_NUMBER_OF_DESKTOPS']
+    properties['_NET_NUMBER_OF_DESKTOPS'] = ptxcb.XROOT.get_number_of_desktops()
 
-    def reset_properties(self):
-        self.properties = {
-            '_NET_ACTIVE_WINDOW': '',
-            '_NET_CLIENT_LIST': set(),
-            '_NET_WORKAREA': [],
-            '_NET_NUMBER_OF_DESKTOPS': 0,
-            '_NET_DESKTOP_GEOMETRY': {},
-        }
+    # Add destops...
+    if old < properties['_NET_NUMBER_OF_DESKTOPS']:
+        for wsid in xrange(old, properties['_NET_NUMBER_OF_DESKTOPS']):
+            Workspace.add(wsid)
+            Monitor.add(wsid, xinerama)
 
-    def set_active(self, wid):
-        if wid in Window.WINDOWS:
-            self._ACTIVE = Window.WINDOWS[wid]
+    # Remove desktops
+    elif old > properties['_NET_NUMBER_OF_DESKTOPS']:
+        for wsid in xrange(properties['_NET_NUMBER_OF_DESKTOPS'], old):
+            Monitor.remove(wsid)
+            Workspace.remove(wsid)
+
+def update_NET_DESKTOP_GEOMETRY():
+    global properties, xinerama
+
+    old_geom = properties['_NET_DESKTOP_GEOMETRY']
+    old_xinerama = xinerama
+
+    time.sleep(1)
+
+    properties['_NET_DESKTOP_GEOMETRY'] = ptxcb.XROOT.get_desktop_geometry()
+    xinerama = ptxcb.connection.xinerama_get_screens()
+
+    if old_xinerama != xinerama:
+        if len(old_xinerama) == len(xinerama):
+            for mon in Workspace.iter_all_monitors():
+                mon.refresh_bounds(
+                    xinerama[mid]['x'],
+                    xinerama[mid]['y'],
+                    xinerama[mid]['width'],
+                    xinerama[mid]['height']
+                )
+                mon.calculate_workarea()
         else:
-            self._ACTIVE = None
+            for wid in Window.WINDOWS.keys():
+                Window.remove(wid)
 
-    def update_property(self, pname):
-        if pname in self.properties:
-            if pname == '_NET_ACTIVE_WINDOW':
-                self.refresh_active()
-                self.properties[pname] = self.get_active()
-            elif pname == '_NET_CLIENT_LIST':
-                old = self.properties[pname]
-                new = set(ptxcb.XROOT.get_window_ids())
+            for wsid in Workspace.WORKSPACES.keys():
+                Monitor.remove(wsid)
+                Workspace.remove(wsid)
 
-                self.properties[pname] = new
+            reset_properties()
+            load_properties()
 
-                if old != new:
-                    added, removed = self.net_client_list_changes(old, new)
-            elif pname == '_NET_WORKAREA':
-                self.properties[pname] = ptxcb.XROOT.get_workarea()
-
-                for mon in Workspace.iter_all_monitors():
-                    mon.calculate_workarea()
-            elif pname == '_NET_NUMBER_OF_DESKTOPS':
-                old = self.properties[pname]
-                self.properties[pname] = ptxcb.XROOT.get_number_of_desktops()
-
-                # Add destops...
-                if old < self.properties[pname]:
-                    for wsid in xrange(old, self.properties[pname]):
-                        Workspace.add(wsid)
-                        Monitor.add(wsid, self.xinerama)
-
-                # Remove desktops
-                elif old > self.properties[pname]:
-                    for wsid in xrange(self.properties[pname], old):
-                        Monitor.remove(wsid)
-                        Workspace.remove(wsid)
-            elif pname == '_NET_DESKTOP_GEOMETRY':
-                old_geom = self.properties[pname]
-                old_xinerama = self.xinerama
-
-                time.sleep(1)
-
-                # Figure out a way to update screens...
-                # It's easy if it's just the resolution changing,
-                # but what about adding/removing monitors? :-(
-
-                self.properties[pname] = ptxcb.XROOT.get_desktop_geometry()
-                self.xinerama = ptxcb.XCONN.xinerama_get_screens()
-
-                print old_xinerama
-                print self.xinerama
-
-                if old_xinerama != self.xinerama:
-                    if len(old_xinerama) == len(self.xinerama):
-                        for mon in Workspace.iter_all_monitors():
-                            mon.refresh_bounds(
-                                self.xinerama[mid]['x'],
-                                self.xinerama[mid]['y'],
-                                self.xinerama[mid]['width'],
-                                self.xinerama[mid]['height']
-                            )
-                            mon.calculate_workarea()
-                    else:
-                        for wid in Window.WINDOWS.keys():
-                            Window.remove(wid)
-
-                        for wsid in Workspace.WORKSPACES.keys():
-                            Monitor.remove(wsid)
-                            Workspace.remove(wsid)
-
-                        self.reset_properties()
-                        self.load_properties()
-
-STATE = State.get_state()
+init()
