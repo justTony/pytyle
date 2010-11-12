@@ -4,12 +4,13 @@ import xcb.xproto, xcb.xcb
 
 import pytyle.config as config
 import pytyle.ptxcb as ptxcb
+import pytyle.state as state
 from pytyle.command import Command
 from pytyle.dispatcher import Dispatcher
 
-Command.init(config.keybindings)
+Command.init()
 
-ptxcb.connection.push()
+state.apply_config()
 
 while True:
     try:

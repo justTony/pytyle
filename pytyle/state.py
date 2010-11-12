@@ -2,6 +2,7 @@ import time
 
 import ptxcb
 
+import config
 from window import Window
 from monitor import Monitor
 from workspace import Workspace
@@ -16,6 +17,11 @@ xinerama = ptxcb.connection.xinerama_get_screens()
 def init():
     reset_properties()
     load_properties()
+
+def apply_config():
+    for mon in Workspace.iter_all_monitors():
+        if config.get_option('tile_on_startup', mon.workspace.id, mon.id):
+            mon.tile(force_tiling=True)
 
 def get_active():
     global _ACTIVE
@@ -214,7 +220,7 @@ def update_NET_NUMBER_OF_DESKTOPS():
             Monitor.remove(wsid)
             Workspace.remove(wsid)
 
-def update_NET_DESKTOP_GEOMETRY():
+def update_NET_DESKTOP_GEOMETRY(force=False):
     global properties, xinerama
 
     old_geom = properties['_NET_DESKTOP_GEOMETRY']
@@ -225,8 +231,8 @@ def update_NET_DESKTOP_GEOMETRY():
     properties['_NET_DESKTOP_GEOMETRY'] = ptxcb.XROOT.get_desktop_geometry()
     xinerama = ptxcb.connection.xinerama_get_screens()
 
-    if old_xinerama != xinerama:
-        if len(old_xinerama) == len(xinerama):
+    if old_xinerama != xinerama or force:
+        if not force and len(old_xinerama) == len(xinerama):
             for mon in Workspace.iter_all_monitors():
                 mon.refresh_bounds(
                     xinerama[mid]['x'],

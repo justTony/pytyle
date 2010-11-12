@@ -18,7 +18,11 @@ class Horizontal(AutoTile):
         m_y = self.monitor.wa_y
         s_y = m_y + m_height
 
-        if m_height <= 0 or m_height > self.monitor.wa_height or s_height <= 0 or s_height > self.monitor.wa_height:
+        if (
+            m_height <= 0 or m_height > self.monitor.wa_height or
+            s_height <= 0 or s_height > self.monitor.wa_height
+        ):
+            self.error_exec_callbacks()
             return
 
         if m_size:
@@ -50,10 +54,23 @@ class Horizontal(AutoTile):
                     s_height
                 )
 
-    def increase_master(self, inc = 0.05):
-        self.vsplit += inc
+        # If we've made it this far, then we've supposedly tiled correctly
+        self.error_clear()
+
+    def decrement_vsplit(self):
+        self.vsplit -= self.get_option('step_size')
+
+    def increment_vsplit(self):
+        self.vsplit += self.get_option('step_size')
+
+    def decrease_master(self):
+        self.decrement_vsplit()
+
+        self.error_register_callback(self.increment_vsplit)
         self.enqueue()
 
-    def decrease_master(self, dec = 0.05):
-        self.vsplit -= dec
+    def increase_master(self):
+        self.increment_vsplit()
+
+        self.error_register_callback(self.decrement_vsplit)
         self.enqueue()

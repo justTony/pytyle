@@ -52,7 +52,7 @@ class Monitor(object):
         self.man_tilers = []
 
         # Attach tilers...
-        for tile_name in config.tilers:
+        for tile_name in config.get_option('tilers', self.workspace.id, self.id):
             if hasattr(tilers, tile_name):
                 tiler = getattr(tilers, tile_name)
                 self.add_tiler(tiler(self))
@@ -76,61 +76,73 @@ class Monitor(object):
         self.wa_width = self.width
         self.wa_height = self.height
 
-        wids = ptxcb.XROOT.get_window_ids()
+        if self.get_tiler():
+            margin = self.get_tiler().get_option('margin')
+        else:
+            margin = config.get_option('margin', self.workspace.id, self.id)
 
-        # Keep track of what we've added...
-        # If we come across a window with the same exact
-        # size/position/struts, skip it!
-        log = []
+        if margin and len(margin) == 4:
+            # margin = top(0) right(1) bottom(2) left(3)
+            self.wa_x += margin[3]
+            self.wa_y += margin[0]
+            self.wa_width -= margin[1] + margin[3]
+            self.wa_height -= margin[0] + margin[2]
+        else:
+            wids = ptxcb.XROOT.get_window_ids()
 
-        for wid in wids:
-            win = ptxcb.Window(wid)
+            # Keep track of what we've added...
+            # If we come across a window with the same exact
+            # size/position/struts, skip it!
+            log = []
 
-            # We're listening to _NET_WORKAREA, so a panel
-            # might have died before _NET_CLIENT_LIST was updated...
-            try:
-                x, y, w, h = win.get_geometry()
-            except:
-                continue
+            for wid in wids:
+                win = ptxcb.Window(wid)
 
-            if self.workspace.contains(win.get_desktop_number()) and self.contains(x, y):
-                struts = win.get_strut_partial()
-
-                if not struts:
-                    struts = win.get_strut()
-
-                key = (x, y, w, h, struts)
-
-                if key in log:
+                # We're listening to _NET_WORKAREA, so a panel
+                # might have died before _NET_CLIENT_LIST was updated...
+                try:
+                    x, y, w, h = win.get_geometry()
+                except:
                     continue
 
-                log.append(key)
+                if self.workspace.contains(win.get_desktop_number()) and self.contains(x, y):
+                    struts = win.get_strut_partial()
 
-                if struts and not all([struts[i] == 0 for i in struts]):
-                    if struts['left'] or struts['right']:
-                        if struts['left']:
+                    if not struts:
+                        struts = win.get_strut()
+
+                    key = (x, y, w, h, struts)
+
+                    if key in log:
+                        continue
+
+                    log.append(key)
+
+                    if struts and not all([struts[i] == 0 for i in struts]):
+                        if struts['left'] or struts['right']:
+                            if struts['left']:
+                                self.wa_x += w
+                            self.wa_width -= w
+
+                        if struts['top'] or struts['bottom']:
+                            if struts['top']:
+                                self.wa_y += h
+                            self.wa_height -= h
+                    elif struts:
+                        # When accounting for struts on left/right, and
+                        # struts are reported properly, x shouldn't be
+                        # zero. Similarly for top/bottom and y.
+
+                        if x > 0 and self.width == (x + w):
+                            self.wa_width -= w
+                        elif y > 0 and self.height == (y + h):
+                            self.wa_height -= h
+                        elif x > 0 and self.wa_x == x:
                             self.wa_x += w
-                        self.wa_width -= w
-
-                    if struts['top'] or struts['bottom']:
-                        if struts['top']:
+                            self.wa_width -= w
+                        elif y > 0 and self.wa_y == y:
                             self.wa_y += h
-                        self.wa_height -= h
-                elif struts:
-                    # When accounting for struts on left/right, and
-                    # struts are reported properly, x shouldn't be
-                    # zero. Similarly for top/bottom and y.
-
-                    if x > 0 and self.width == (x + w):
-                        self.wa_width -= w
-                    elif y > 0 and self.height == (y + h):
-                        self.wa_height -= h
-                    elif x > 0 and self.wa_x == x:
-                        self.wa_x += w
-                        self.wa_width -= w
-                    elif y > 0 and self.wa_y == y:
-                        self.wa_y += h
-                        self.wa_height -= h
+                            self.wa_height -= h
 
         self.tile()
 
@@ -154,6 +166,7 @@ class Monitor(object):
                 (self.auto_tilers.index(self.tiler) + 1) % len(self.auto_tilers)
             ]
 
+            self.calculate_workarea()
             self.tile(force_tiling)
 
     def get_active(self):

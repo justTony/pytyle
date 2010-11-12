@@ -112,6 +112,9 @@ class Window(object):
 
         return self.properties[pname]
 
+    def get_winclass(self):
+        return self._xwin.get_class()[0]
+
     def lives(self):
         try:
             self._xwin.get_desktop_number()
@@ -183,11 +186,6 @@ class Window(object):
 
         states = self.properties['_NET_WM_STATE']
         if '_NET_WM_STATE_HIDDEN' in states:
-            return False
-
-        winclass = self._xwin.get_class()
-
-        if winclass[0] in config.ignore:
             return False
 
         return True

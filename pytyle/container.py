@@ -55,10 +55,11 @@ class Container(object):
 
         self.box_hide()
 
-        self._box['htop'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y, w, bw, color)
-        self._box['hbot'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y + h, w, bw, color)
-        self._box['vleft'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y, bw, h, color)
-        self._box['vright'] = ptxcb.LineWindow(self.tiler.workspace.id, x + w - bw, y, bw, h, color)
+        if self.tiler.workspace.id == ptxcb.XROOT.get_current_desktop():
+            self._box['htop'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y, w, bw, color)
+            self._box['hbot'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y + h, w, bw, color)
+            self._box['vleft'] = ptxcb.LineWindow(self.tiler.workspace.id, x, y, bw, h, color)
+            self._box['vright'] = ptxcb.LineWindow(self.tiler.workspace.id, x + w - bw, y, bw, h, color)
 
     def decorations(self, decor, do_window=True):
         if do_window and self.win:

@@ -1,6 +1,7 @@
 import xcb.xproto
 
 import ptxcb
+import config
 
 class Command:
     _cmds = {}
@@ -48,9 +49,10 @@ class Command:
         del Command._cmds[self.get_index()]
 
     @staticmethod
-    def init(cmds):
-        for k in cmds:
-            cmd = Command(k, cmds[k])
+    def init():
+        keybindings = config.get_keybindings()
+        for k in keybindings:
+            cmd = Command(k, keybindings[k])
             Command._cmds[cmd.get_index()] = cmd
 
     @staticmethod

@@ -1,4 +1,4 @@
-from pytyle.tile import AutoTile
+from pytyle.tile_auto import AutoTile
 
 class Vertical(AutoTile):
     def __init__(self, monitor):
@@ -18,7 +18,11 @@ class Vertical(AutoTile):
         m_x = self.monitor.wa_x
         s_x = m_x + m_width
 
-        if m_width <= 0 or m_width > self.monitor.wa_width or s_width <= 0 or s_width > self.monitor.wa_width:
+        if (
+            m_width <= 0 or m_width > self.monitor.wa_width or
+            s_width <= 0 or s_width > self.monitor.wa_width
+        ):
+            self.error_exec_callbacks()
             return
 
         if m_size:
@@ -50,10 +54,23 @@ class Vertical(AutoTile):
                     s_height
                 )
 
-    def increase_master(self, inc = 0.05):
-        self.hsplit += inc
+        # If we've made it this far, then we've supposedly tiled correctly
+        self.error_clear()
+
+    def decrement_hsplit(self):
+        self.hsplit -= self.get_option('step_size')
+
+    def increment_hsplit(self):
+        self.hsplit += self.get_option('step_size')
+
+    def decrease_master(self):
+        self.decrement_hsplit()
+
+        self.error_register_callback(self.increment_hsplit)
         self.enqueue()
 
-    def decrease_master(self, dec = 0.05):
-        self.hsplit -= dec
+    def increase_master(self):
+        self.increment_hsplit()
+
+        self.error_register_callback(self.decrement_hsplit)
         self.enqueue()

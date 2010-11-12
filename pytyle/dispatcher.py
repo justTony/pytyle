@@ -43,6 +43,10 @@ class Dispatcher(object):
             state.print_hierarchy(*state.get_active_wsid_and_mid())
         elif x == 'refresh_workarea':
             state.update_property('_NET_WORKAREA')
+        elif x == 'reload_configuration':
+            config.load_config_file()
+            state.update_NET_DESKTOP_GEOMETRY(True)
+            state.apply_config()
         else:
             Tile.dispatch(state.get_active_monitor(), x)
 
@@ -50,7 +54,7 @@ class Dispatcher(object):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
         if win and win.lives() and not win.floating:
-            if time.time() - win.pytyle_moved_time > config.movetime_offset:
+            if time.time() - win.pytyle_moved_time > config.get_option('movetime_offset', *state.get_active_wsid_and_mid()):
                 if state.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
                     pointer = ptxcb.XROOT.query_pointer()
 
