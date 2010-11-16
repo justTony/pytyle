@@ -1,4 +1,5 @@
 import ptxcb
+import config
 
 class Container(object):
     idinc = 1
@@ -49,6 +50,9 @@ class Container(object):
                 box.close()
 
     def box_show(self, color=0x000000):
+        if not self.tiler.borders:
+            return
+
         x, y, w, h = self.x, self.y, self.w, self.h
 
         bw = 2
@@ -88,7 +92,17 @@ class Container(object):
 
         if (self.x != -1 and self.y != -1
             and self.w != -1 and self.h != -1):
-            self.win.moveresize(self.x, self.y, self.w, self.h)
+            x, y, w, h = self.x, self.y, self.w, self.h
+
+            padding = self.tiler.get_option('padding')
+            if padding and len(padding) == 4:
+                # padding = top(0) right(1) bottom(2) left(3)
+                x += padding[3]
+                y += padding[0]
+                w -= padding[1] + padding[3]
+                h -= padding[0] + padding[2]
+
+            self.win.moveresize(x, y, w, h)
 
     def get_name(self):
         if not self.win:
@@ -101,6 +115,14 @@ class Container(object):
         self.fit_window()
 
         self.decorations(self.tiler.decor)
+
+    def window_lower(self):
+        if self.win:
+            self.win.restack(below=True)
+
+    def window_raise(self):
+        if self.win:
+            self.win.restack()
 
     def remove(self, reset_window=False):
         self.detach(reset_window)

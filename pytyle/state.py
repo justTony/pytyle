@@ -179,6 +179,11 @@ def update_NET_CLIENT_LIST():
         for wid in old.difference(new):
             Window.remove(wid)
 
+        # This might be redundant, but it's important to know
+        # the new active window if the old one was destroyed
+        # as soon as possible
+        update_NET_ACTIVE_WINDOW()
+
 def update_NET_CURRENT_DESKTOP():
     global properties
 

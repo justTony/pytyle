@@ -12,11 +12,13 @@ class Command:
         'super': xcb.xproto.ModMask._4
     }
 
-    def __init__(self, keys, command):
+    def __init__(self, keys, glbl=None, auto=None, manual=None):
         self._original_keybinding = keys
         self._mod_mask = 0
         self._keycode = 0
-        self._command = command
+        self._glbl = glbl
+        self._auto = auto
+        self._manual = manual
 
         for part in keys.split('-'):
             part = part.lower()
@@ -41,8 +43,19 @@ class Command:
     def get_index(self):
         return (self._keycode, self._mod_mask)
 
-    def get_command(self):
-        return self._command
+    # This is for when we don't care if it's auto/manual
+    def get_global_command(self):
+        return self._glbl
+
+    def get_auto_command(self):
+        if not self._auto:
+            return self._glbl
+        return self._auto
+
+    def get_manual_command(self):
+        if not self._manual:
+            return self._glbl
+        return self._manual
 
     def unbind(self):
         ptxcb.XROOT.ungrab_key(self._keycode, self._mod_mask)
@@ -52,7 +65,12 @@ class Command:
     def init():
         keybindings = config.get_keybindings()
         for k in keybindings:
-            cmd = Command(k, keybindings[k])
+            cmd = Command(
+                k,
+                glbl=keybindings[k]['global'],
+                auto=keybindings[k]['auto'],
+                manual=keybindings[k]['manual']
+            )
             Command._cmds[cmd.get_index()] = cmd
 
     @staticmethod

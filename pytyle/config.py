@@ -59,12 +59,30 @@ class PyTyleConfigParser(ConfigParser.SafeConfigParser):
 
         return retval
 
-    def get_keybindings(self):
+    def get_global_keybindings(self):
         retval = {}
 
-        if 'Keybindings' in self.sections():
-            for option in self.options('Keybindings'):
-                retval[option] = self.get('Keybindings', option)
+        if 'GlobalKeybindings' in self.sections():
+            for option in self.options('GlobalKeybindings'):
+                retval[option] = self.get('GlobalKeybindings', option)
+
+        return retval
+
+    def get_auto_keybindings(self):
+        retval = {}
+
+        if 'AutoKeybindings' in self.sections():
+            for option in self.options('AutoKeybindings'):
+                retval[option] = self.get('AutoKeybindings', option)
+
+        return retval
+
+    def get_manual_keybindings(self):
+        retval = {}
+
+        if 'ManualKeybindings' in self.sections():
+            for option in self.options('ManualKeybindings'):
+                retval[option] = self.get('ManualKeybindings', option)
 
         return retval
 
@@ -125,7 +143,15 @@ option_types = {
         'exec': PyTyleConfigParser.getboolean,
         'default': True
     },
+    'borders': {
+        'exec': PyTyleConfigParser.getboolean,
+        'default': True
+    },
     'margin': {
+        'exec': PyTyleConfigParser.getintlist,
+        'default': []
+    },
+    'padding': {
         'exec': PyTyleConfigParser.getintlist,
         'default': []
     },
@@ -136,10 +162,38 @@ option_types = {
     'step_size': {
         'exec': PyTyleConfigParser.getfloat,
         'default': 0.05
+    },
+    'width_factor': {
+        'exec': PyTyleConfigParser.getfloat,
+        'default': 0.5
+    },
+    'height_factor': {
+        'exec': PyTyleConfigParser.getfloat,
+        'default': 0.5
+    },
+    'rows': {
+        'exec': PyTyleConfigParser.getint,
+        'default': 2
+    },
+    'columns': {
+        'exec': PyTyleConfigParser.getint,
+        'default': 2
+    },
+    'push_down': {
+        'exec': PyTyleConfigParser.getint,
+        'default': 25
+    },
+    'push_over': {
+        'exec': PyTyleConfigParser.getint,
+        'default': 0
+    },
+    'horz_align': {
+        'exec': PyTyleConfigParser.get,
+        'default': 'left'
     }
 }
 
-# Specified in the "Keybindings" section
+# Specified in the "(Auto|Manual)Keybindings" section
 keybindings = {}
 
 # Settings specified in the "Global" section
@@ -194,8 +248,33 @@ def load_config_file():
             conf.read(path)
             break
 
+    k_global = conf.get_global_keybindings()
+    k_auto = conf.get_auto_keybindings()
+    k_manual = conf.get_manual_keybindings()
+    for k in k_global:
+        keybindings[k] = {
+            'global': k_global[k],
+            'auto': None,
+            'manual': None
+        }
+    for k in k_auto:
+        if k not in keybindings:
+            keybindings[k] = {
+                'global': None,
+                'auto': None,
+                'manual': None
+            }
+        keybindings[k]['auto'] = k_auto[k]
+    for k in k_manual:
+        if k not in keybindings:
+            keybindings[k] = {
+                'global': None,
+                'auto': None,
+                'manual': None
+            }
+        keybindings[k]['manual'] = k_manual[k]
+
     glbls = conf.get_global_configs()
-    keybindings = conf.get_keybindings()
     wmt = conf.get_wmt_configs()
 
 # Just a public accessor to get a list of all the keybindings

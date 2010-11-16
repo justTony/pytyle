@@ -4,7 +4,8 @@ import ptxcb
 import tilers
 
 # Class imports
-from tile import AutoTile
+from tile_auto import AutoTile
+from tile_manual import ManualTile
 from workspace import Workspace
 
 class Monitor(object):
@@ -48,18 +49,19 @@ class Monitor(object):
 
         self.tiler = None
         self.auto = True
-        self.auto_tilers = []
-        self.man_tilers = []
+        self.tilers = []
 
         # Attach tilers...
         for tile_name in config.get_option('tilers', self.workspace.id, self.id):
             if hasattr(tilers, tile_name):
                 tiler = getattr(tilers, tile_name)
                 self.add_tiler(tiler(self))
+            elif tile_name == 'Manual':
+                self.add_tiler(ManualTile(self))
 
     def add_tiler(self, tiler):
-        if isinstance(tiler, AutoTile):
-            self.auto_tilers.append(tiler)
+        #if isinstance(tiler, AutoTile):
+        self.tilers.append(tiler)
 
     def add_window(self, win):
         self.windows.add(win)
@@ -156,18 +158,18 @@ class Monitor(object):
         return False
 
     def cycle(self):
-        if self.auto and self.auto_tilers:
-            force_tiling = False
-            if self.get_tiler() and self.get_tiler().tiling:
-                force_tiling = True
-                self.get_tiler().detach()
+        #if self.auto and self.auto_tilers:
+        force_tiling = False
+        if self.get_tiler() and self.get_tiler().tiling:
+            force_tiling = True
+            self.get_tiler().detach()
 
-            self.tiler = self.auto_tilers[
-                (self.auto_tilers.index(self.tiler) + 1) % len(self.auto_tilers)
-            ]
+        self.tiler = self.tilers[
+            (self.tilers.index(self.tiler) + 1) % len(self.tilers)
+        ]
 
-            self.calculate_workarea()
-            self.tile(force_tiling)
+        self.calculate_workarea()
+        self.tile(force_tiling)
 
     def get_active(self):
         if not self.active:
@@ -178,10 +180,7 @@ class Monitor(object):
 
     def get_tiler(self):
         if not self.tiler:
-            if self.auto and self.auto_tilers:
-                self.tiler = self.auto_tilers[0]
-            elif self.man_tilers:
-                self.tiler = self.man_tilers[0]
+            self.tiler = self.tilers[0]
 
         return self.tiler
 
@@ -212,16 +211,16 @@ class Monitor(object):
         self.get_tiler().enqueue(force_tiling=force_tiling)
 
     def tile_reset(self):
-        if self.auto and self.auto_tilers:
-            i = self.auto_tilers.index(self.get_tiler())
-            tile_name = self.auto_tilers[i].__class__.__name__
+        #if self.auto and self.auto_tilers:
+        i = self.tilers.index(self.get_tiler())
+        tile_name = self.tilers[i].get_name()
 
-            if hasattr(tilers, tile_name):
-                self.get_tiler().detach()
-                self.auto_tilers[i] = getattr(tilers, tile_name)(self)
-                self.tiler = self.auto_tilers[i]
+        if hasattr(tilers, tile_name):
+            self.get_tiler().detach()
+            self.tilers[i] = getattr(tilers, tile_name)(self)
+            self.tiler = self.tilers[i]
 
-                self.tile(force_tiling=True)
+            self.tile(force_tiling=True)
 
     def __str__(self):
         return 'Monitor %d - [WORKSPACE: %d, X: %d, Y: %d, Width: %d, Height: %d]' % (

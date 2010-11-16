@@ -162,6 +162,9 @@ class Window(object):
         else:
             self._xwin.moveresize(self.ox, self.oy, self.owidth, self.oheight)
 
+    def restack(self, below=False):
+        self._xwin.restack(below)
+
     def set_container(self, container):
         self.container = container
 

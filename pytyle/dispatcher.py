@@ -32,7 +32,7 @@ class Dispatcher(object):
 
     def KeyPressEvent(self):
         cmd = Command.lookup(self._event_data['keycode'], self._event_data['modifiers'])
-        x = cmd.get_command()
+        x = cmd.get_global_command()
 
         if x == 'quit':
             for tiler in state.iter_tilers():
@@ -48,7 +48,7 @@ class Dispatcher(object):
             state.update_NET_DESKTOP_GEOMETRY(True)
             state.apply_config()
         else:
-            Tile.dispatch(state.get_active_monitor(), x)
+            Tile.dispatch(state.get_active_monitor(), cmd)
 
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)

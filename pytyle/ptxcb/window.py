@@ -346,11 +346,11 @@ class Window(object):
 
         connection.push()
 
-    def restack(self):
+    def restack(self, below=False):
         self._send_client_event(
             Atom.get_atom('_NET_RESTACK_WINDOW'),
             [
-                2,
+                2 if not below else 1,
                 self.wid,
                 0
             ]

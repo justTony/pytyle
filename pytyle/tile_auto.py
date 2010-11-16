@@ -27,14 +27,6 @@ class AutoTile(Tile):
             for cont in self.store.all():
                 cont.decorations(True, do_window)
 
-    def callback_hidden(self):
-        if not self.decor:
-            self.borders_remove(do_window=False)
-
-    def callback_visible(self):
-        if not self.decor:
-            self.borders_add(do_window=False)
-
     def detach(self):
         self.tiling = False
 
@@ -67,7 +59,19 @@ class AutoTile(Tile):
 
         if active:
             a = self.store.all()
-            return a[(a.index(active) + 1) % len(a)]
+            m = self.store.masters
+            s = self.store.slaves
+
+            if active in m:
+                if m.index(active) == 0:
+                    return a[(a.index(m[-1]) + 1) % len(a)]
+                else:
+                    return a[(a.index(active) - 1) % len(a)]
+            else:
+                if s.index(active) == len(s) - 1:
+                    return m[-1]
+                else:
+                    return a[(a.index(active) + 1) % len(a)]
 
         return None
 
@@ -76,7 +80,19 @@ class AutoTile(Tile):
 
         if active:
             a = self.store.all()
-            return a[a.index(active) - 1]
+            m = self.store.masters
+            s = self.store.slaves
+
+            if active in m:
+                if m.index(active) == len(m) - 1:
+                    return a[-1]
+                else:
+                    return a[(a.index(active) + 1) % len(a)]
+            else:
+                if s.index(active) == 0:
+                    return m[0]
+                else:
+                    return a[(a.index(active) - 1) % len(a)]
 
         return None
 
@@ -92,6 +108,10 @@ class AutoTile(Tile):
                 new_tiler.store.masters[0].activate()
             elif new_tiler.store.slaves:
                 new_tiler.store.slaves[0].activate()
+        elif self != new_tiler:
+            active = self.workspace.get_monitor(mid).get_active()
+            if active:
+                active.activate()
 
     def _screen_put(self, mid):
         active = self._get_active()
@@ -114,11 +134,15 @@ class AutoTile(Tile):
             slave = self.store.slaves[self.cycle_index]
 
             master.switch(slave)
+            master.activate()
 
             self.cycle_index += 1
 
     def cycle_tiler(self):
         self.monitor.cycle()
+
+    def decrease_master(self):
+        pass
 
     def decrement_masters(self):
         self.store.dec_masters()
@@ -140,6 +164,9 @@ class AutoTile(Tile):
 
         if master:
             master.activate()
+
+    def increase_master(self):
+        pass
 
     def increment_masters(self):
         self.store.inc_masters()
