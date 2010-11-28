@@ -10,12 +10,23 @@ class Atom:
 
     @staticmethod
     def build_cache():
-        if not Atom._cache:
-            for atom in atoms:
-                Atom._cache[atom] = connection.get_core().InternAtom(True, len(atom), atom).reply().atom
+        if Atom._cache:
+            return
 
-                if atoms[atom][0] is not None and atoms[atom][0] not in Atom._cache:
-                    Atom._cache[atoms[atom][0]] = connection.get_core().InternAtom(True, len(atoms[atom][0]), atoms[atom][0]).reply().atom
+        for atom in atoms:
+            Atom._cache[atom] = connection.get_core().InternAtom(
+                False,
+                len(atom),
+                atom
+            ).reply().atom
+
+            if (atoms[atom][0] is not None and
+                atoms[atom][0] not in Atom._cache):
+                Atom._cache[atoms[atom][0]] = connection.get_core().InternAtom(
+                    False,
+                    len(atoms[atom][0]),
+                    atoms[atom][0]
+                ).reply().atom
 
     @staticmethod
     def get_atom(name):

@@ -17,19 +17,27 @@ class Tile(object):
             else:
                 cmd_nm = command.get_auto_command()
 
-            if hasattr(tiler, cmd_nm):
-                if command == 'tile':
+            if cmd_nm and hasattr(tiler, 'cmd_' + cmd_nm):
+                if cmd_nm == 'tile':
                     tiler.enqueue(force_tiling=True)
                 elif tiler.tiling:
-                    getattr(tiler, cmd_nm)()
+                    getattr(tiler, 'cmd_' + cmd_nm)()
             else:
-                raise Exception('Invalid command %s' % cmd_nm)
+                print 'Invalid command %s' % cmd_nm
 
     @staticmethod
     def exec_queue():
         for tiler in Tile.queue_tile:
-            tiler.tile()
+            tiler.cmd_tile()
         Tile.queue_tile = set()
+
+    #
+    # Helper methods
+    # These are responsible for some utility work common to all
+    # tilers. Such as moving windows from one monitor to the next,
+    # toggling decorations/borders, and handling high-level functions
+    # like callbacks for hiding/showing the tiler, or if an error occurs.
+    #
 
     def __init__(self, monitor):
         self.workspace = monitor.workspace
@@ -79,12 +87,76 @@ class Tile(object):
             self.get_name()
         )
 
+    def mouse_find(self, x, y):
+        pass
+
+    def mouse_switch(self, x, y):
+        pass
+
+    def screen_focus(self, mid):
+        if not self.workspace.has_monitor(mid):
+            return
+
+        new_tiler = self.workspace.get_monitor(mid).get_tiler()
+
+        if self != new_tiler:
+            if new_tiler:
+                active = new_tiler.get_active_cont()
+
+            if not active:
+                active = self.workspace.get_monitor(mid).get_active()
+
+            if active:
+                active.activate()
+
+    def screen_put(self, mid):
+        if not self.workspace.has_monitor(mid):
+            return
+
+        active = self.get_active_cont()
+        new_tiler = self.workspace.get_monitor(mid).get_tiler()
+
+        if new_tiler != self and active and new_tiler.tiling:
+            active.win.set_monitor(self.workspace.id, mid)
+        elif active and self.monitor.id != mid:
+            mon = self.workspace.get_monitor(mid)
+            active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)
+            active.win.set_monitor(self.workspace.id, mid)
+
+    #
     # Commands
-    def tile(self):
+    # Functions called directly by pressing a key.
+    #
+
+    def cmd_cycle_tiler(self):
+        self.monitor.cycle()
+
+    def cmd_reset(self):
+        self.monitor.tile_reset()
+
+    def cmd_screen0_focus(self):
+        self.screen_focus(0)
+
+    def cmd_screen1_focus(self):
+        self.screen_focus(1)
+
+    def cmd_screen2_focus(self):
+        self.screen_focus(2)
+
+    def cmd_screen0_put(self):
+        self.screen_put(0)
+
+    def cmd_screen1_put(self):
+        self.screen_put(1)
+
+    def cmd_screen2_put(self):
+        self.screen_put(2)
+
+    def cmd_tile(self):
         self.tiling = True
         self.monitor.tiler = self
 
-    def toggle_borders(self):
+    def cmd_toggle_borders(self):
         self.borders = not self.borders
 
         if not self.decor:
@@ -93,7 +165,7 @@ class Tile(object):
             else:
                 self.borders_remove(do_window=False)
 
-    def toggle_decorations(self):
+    def cmd_toggle_decorations(self):
         self.decor = not self.decor
 
         if self.decor:
@@ -103,6 +175,6 @@ class Tile(object):
 
         Container.manage_focus(self.monitor.get_active())
 
-    def untile(self):
+    def cmd_untile(self):
         self.tiling = False
         self.monitor.tiler = None

@@ -4,8 +4,6 @@ import ptxcb
 import tilers
 
 # Class imports
-from tile_auto import AutoTile
-from tile_manual import ManualTile
 from workspace import Workspace
 
 class Monitor(object):
@@ -24,15 +22,11 @@ class Monitor(object):
             Workspace.WORKSPACES[wsid].monitors[mid] = new_mon
 
     @staticmethod
-    def lookup(wsid, x, y):
-        if wsid in Workspace.WORKSPACES:
-            for mon in Workspace.WORKSPACES[wsid].iter_monitors():
-                if mon.contains(x, y):
-                    return mon
-        return None
-
-    @staticmethod
     def remove(wsid):
+        for mon in Workspace.WORKSPACES[wsid].iter_monitors():
+            for tiler in mon.tilers:
+                tiler.destroy()
+
         Workspace.WORKSPACES[wsid].monitors = {}
 
     def __init__(self, workspace, mid, x, y, width, height):
@@ -56,11 +50,8 @@ class Monitor(object):
             if hasattr(tilers, tile_name):
                 tiler = getattr(tilers, tile_name)
                 self.add_tiler(tiler(self))
-            elif tile_name == 'Manual':
-                self.add_tiler(ManualTile(self))
 
     def add_tiler(self, tiler):
-        #if isinstance(tiler, AutoTile):
         self.tilers.append(tiler)
 
     def add_window(self, win):
@@ -104,6 +95,7 @@ class Monitor(object):
                 # might have died before _NET_CLIENT_LIST was updated...
                 try:
                     x, y, w, h = win.get_geometry()
+                    d = win.get_desktop_number()
                 except:
                     continue
 
@@ -185,7 +177,8 @@ class Monitor(object):
         return self.tiler
 
     def iter_windows(self):
-        for win in self.windows:
+        copy = set(self.windows)
+        for win in copy:
             yield win
 
     def refresh_bounds(self, x, y, width, height):
@@ -211,7 +204,6 @@ class Monitor(object):
         self.get_tiler().enqueue(force_tiling=force_tiling)
 
     def tile_reset(self):
-        #if self.auto and self.auto_tilers:
         i = self.tilers.index(self.get_tiler())
         tile_name = self.tilers[i].get_name()
 

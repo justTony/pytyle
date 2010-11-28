@@ -1,4 +1,4 @@
-import struct, traceback
+import struct, traceback, time
 
 import xcb.xproto, xcb.xcb
 
@@ -41,8 +41,11 @@ class Window(object):
                 (2 ** 32) - 1
             ).reply()
 
-            if Atom.get_type_name(atom_name) == 'UTF8_STRING':
-                return Atom.ords_to_str(rsp.value)
+            if Atom.get_type_name(atom_name) in ('UTF8_STRING', 'STRING'):
+                if atom_name == 'WM_CLASS':
+                    return Atom.null_terminated_to_strarray(rsp.value)
+                else:
+                    return Atom.ords_to_str(rsp.value)
             elif Atom.get_type_name(atom_name) in ('UTF8_STRING[]', 'STRING[]'):
                 return Atom.null_terminated_to_strarray(rsp.value)
             else:
@@ -51,6 +54,7 @@ class Window(object):
             pass
 
     def _moveresize(self, x, y, width, height):
+        #print self.get_wmname(), x, y, width, height
         self._send_client_event(
             Atom.get_atom('_NET_MOVERESIZE_WINDOW'),
             [
@@ -193,6 +197,12 @@ class Window(object):
     def get_name(self):
         return self._get_property('_NET_WM_NAME')
 
+    def get_wmname(self):
+        return self._get_property('WM_NAME')
+
+    def get_pytyle_types(self):
+        return set([Atom.get_atom_name(anum) for anum in self._get_property('_PYTYLE_TYPE')])
+
     def get_states(self):
         return set([Atom.get_atom_name(anum) for anum in self._get_property('_NET_WM_STATE')])
 
@@ -256,7 +266,7 @@ class Window(object):
             ]
 
             for mod in addmods:
-                connection.get_core().GrabKey(
+                cook = connection.get_core().GrabKeyChecked(
                     True,
                     self.wid,
                     modifiers | mod,
@@ -264,9 +274,12 @@ class Window(object):
                     xcb.xproto.GrabMode.Async,
                     xcb.xproto.GrabMode.Async
                 )
-        except:
-            print traceback.format_exc()
-            print 'Could not grab key:', modifiers, '---', key
+
+                cook.check()
+
+            return True
+        except xcb.xproto.BadAccess:
+            return None
 
     def listen(self):
         self.set_event_masks(
@@ -368,6 +381,17 @@ class Window(object):
 
         connection.push()
 
+    def set_below(self, below):
+        self._send_client_event(
+            Atom.get_atom('_NET_WM_STATE'),
+            [
+                1 if below else 0,
+                Atom.get_atom('_NET_WM_STATE_BELOW'),
+            ]
+        )
+
+        connection.push()
+
     def stack(self, above):
         try:
             connection.get_core().ConfigureWindow(
@@ -429,8 +453,57 @@ class Window(object):
     def unlisten(self):
         self.set_event_masks(0)
 
+class BlankWindow(Window):
+    def __init__(self, wsid, x, y, width, height, color=0x000000):
+        self._root_depth = connection.setup.roots[0].root_depth
+        self._root_visual = connection.setup.roots[0].root_visual
+        self._pixel = color
+
+        self.wid  = connection.conn.generate_id()
+
+        connection.get_core().CreateWindow(
+            self._root_depth,
+            self.wid,
+            XROOT.wid,
+            x,
+            y,
+            width,
+            height,
+            0,
+            xcb.xproto.WindowClass.InputOutput,
+            self._root_visual,
+            xcb.xproto.CW.BackPixel,
+            [self._pixel]
+        )
+
+        self._set_property('_NET_WM_NAME', 'Place holder')
+        self.set_desktop(wsid)
+        self._set_property('WM_NAME', 'pytyle-internal-window')
+        self._set_property('WM_PROTOCOLS', [Atom.get_atom('WM_DELETE_WINDOW')])
+        self._set_property(
+            '_PYTYLE_TYPE',
+            [
+                Atom.get_atom('_PYTYLE_TYPE_PLACE_HOLDER')
+            ]
+        )
+
+        #self.set_override_redirect(True)
+        connection.get_core().MapWindow(self.wid)
+        connection.push()
+        self._moveresize(x, y, width, height)
+        connection.push()
+        #self.set_override_redirect(False)
+        connection.push()
+
+    def close(self):
+        connection.get_core().DestroyWindow(self.wid)
+
 class LineWindow(Window):
     def __init__(self, wsid, x, y, width, height, color=0x000000):
+        if x < 0 or y < 0 or width < 1 or height < 1:
+            self.wid = 0
+            return
+
         self._root_depth = connection.setup.roots[0].root_depth
         self._root_visual = connection.setup.roots[0].root_visual
         self._pixel = color
@@ -534,6 +607,9 @@ class RootWindow(Window):
 
     def get_window_ids(self):
         return self._get_property('_NET_CLIENT_LIST')
+
+    def get_window_stacked_ids(self):
+        return self._get_property('_NET_CLIENT_LIST_STACKING')
 
     def get_window_manager_name(self):
         return Window(self._get_property('_NET_SUPPORTING_WM_CHECK')[0]).get_name().lower()

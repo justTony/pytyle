@@ -4,7 +4,6 @@ import ptxcb
 import config
 
 from workspace import Workspace
-from monitor import Monitor
 
 class Window(object):
     WINDOWS = {}
@@ -85,6 +84,7 @@ class Window(object):
             '_NET_WM_WINDOW_TYPE': set(),
             '_NET_WM_STATE': set(),
             '_NET_WM_ALLOWED_ACTIONS': set(),
+            '_PYTYLE_TYPE': set(),
             '_NET_FRAME_EXTENTS': {
                 'top': 0, 'left': 0, 'right': 0, 'bottom': 0
             }
@@ -112,8 +112,20 @@ class Window(object):
 
         return self.properties[pname]
 
+    def get_tiler(self):
+        if self.container and self.container.tiler:
+            return self.container.tiler
+        return None
+
     def get_winclass(self):
-        return self._xwin.get_class()[0]
+        cls = self._xwin.get_class()
+
+        if cls:
+            return cls[0]
+        return ''
+
+    def set_below(self, below):
+        self._xwin.set_below(below)
 
     def lives(self):
         try:
@@ -132,7 +144,8 @@ class Window(object):
             '_NET_WM_WINDOW_TYPE',
             '_NET_WM_STATE',
             '_NET_WM_ALLOWED_ACTIONS',
-            '_NET_FRAME_EXTENTS'
+            '_NET_FRAME_EXTENTS',
+            '_PYTYLE_TYPE'
         ]
 
         for pname in property_order:
@@ -154,6 +167,7 @@ class Window(object):
         self.pytyle_moved_time = time.time()
 
         self._xwin.restore()
+
         self._xwin.moveresize(x, y, width, height)
 
     def original_state(self):
@@ -162,8 +176,11 @@ class Window(object):
         else:
             self._xwin.moveresize(self.ox, self.oy, self.owidth, self.oheight)
 
+    def pytyle_place_holder(self):
+        return '_PYTYLE_TYPE_PLACE_HOLDER' in self.properties['_PYTYLE_TYPE']
+
     def restack(self, below=False):
-        self._xwin.restack(below)
+        self._xwin.stack(not below)
 
     def set_container(self, container):
         self.container = container
@@ -188,13 +205,14 @@ class Window(object):
             return False
 
         states = self.properties['_NET_WM_STATE']
-        if '_NET_WM_STATE_HIDDEN' in states:
+        if '_NET_WM_STATE_HIDDEN' in states or self.pytyle_place_holder():
             return False
 
         return True
 
     def update_monitor(self):
-        new_mon = Monitor.lookup(self.properties['_NET_WM_DESKTOP'], self.x, self.y)
+        workspace = Workspace.WORKSPACES[self.properties['_NET_WM_DESKTOP']]
+        new_mon = workspace.get_monitor_xy(self.x, self.y)
 
         if new_mon:
             self.set_monitor(new_mon.workspace.id, new_mon.id)
@@ -245,6 +263,9 @@ class Window(object):
     def update_NET_WM_ALLOWED_ACTIONS(self):
         self.properties['_NET_WM_ALLOWED_ACTIONS'] = self._xwin.get_allowed_actions()
 
+    def update_PYTYLE_TYPE(self):
+        self.properties['_PYTYLE_TYPE'] = self._xwin.get_pytyle_types()
+
     def __str__(self):
         length = 30
         padded_name = ''.join([' ' if ord(c) > 127 else c for c in self.name[0:length].strip()])
@@ -280,3 +301,53 @@ class Window(object):
             print 'Bad form Peter...'
 
         print '-' * 30, '\n'
+
+class BogusWindow(Window):
+    def __init__(self, wsid, x, y, w, h, color=0x000000):
+        #self._fx, self._fy = x, y
+        #self._fw, self._fh = w, h
+
+        self._xwin = ptxcb.BlankWindow(wsid, x, y, w, h, color)
+        self.id = self._xwin.wid
+        self.container = None
+        self.monitor = None
+        self.floating = False
+        self.pytyle_moved_time = 0
+        self.moving = False
+        self.name = 'Place holder'
+
+        self.properties = {
+            '_NET_WM_NAME': 'Place holder',
+            '_NET_WM_DESKTOP': wsid,
+            '_NET_WM_WINDOW_TYPE': set(),
+            '_NET_WM_STATE': set(),
+            '_NET_WM_ALLOWED_ACTIONS': set(),
+            '_PYTYLE_TYPE': set('_PYTYLE_TYPE_PLACE_HOLDER'),
+            '_NET_FRAME_EXTENTS': {
+                'top': 0, 'left': 0, 'right': 0, 'bottom': 0
+            }
+        }
+
+        self.x, self.y = x, y
+        self.width, self.height = w, h
+
+        self.update_monitor()
+
+        #self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
+        self.omaximized = self.maximized()
+
+        self._xwin.listen()
+
+        Window.WINDOWS[self.id] = self
+
+    def pytyle_place_holder(self):
+        return True
+
+    def tilable(self):
+        return False
+
+    def close(self):
+        self._xwin.close()
+
+        if self.monitor:
+            self.monitor.remove_window(self)

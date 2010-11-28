@@ -10,8 +10,32 @@ class Center(AutoTile):
         self.vsplit = self.get_option('height_factor')
         self.columns = self.get_option('columns')
 
-    def tile(self):
-        AutoTile.tile(self)
+    #
+    # Helper methods
+    #
+
+    def lower_master(self):
+        for cont in self.store.slaves:
+            cont.window_raise()
+
+    def decrement_hsplit(self):
+        self.hsplit -= self.get_option('step_size')
+
+    def increment_hsplit(self):
+        self.hsplit += self.get_option('step_size')
+
+    def decrement_vsplit(self):
+        self.vsplit -= self.get_option('step_size')
+
+    def increment_vsplit(self):
+        self.vsplit += self.get_option('step_size')
+
+    #
+    # Commands
+    #
+
+    def cmd_tile(self):
+        AutoTile.cmd_tile(self)
 
         m_size = len(self.store.masters)
         s_size = len(self.store.slaves)
@@ -66,23 +90,7 @@ class Center(AutoTile):
         # If we've made it this far, then we've supposedly tiled correctly
         self.error_clear()
 
-    def _lower_master(self):
-        for cont in self.store.slaves:
-            cont.window_raise()
-
-    def decrement_hsplit(self):
-        self.hsplit -= self.get_option('step_size')
-
-    def increment_hsplit(self):
-        self.hsplit += self.get_option('step_size')
-
-    def decrement_vsplit(self):
-        self.vsplit -= self.get_option('step_size')
-
-    def increment_vsplit(self):
-        self.vsplit += self.get_option('step_size')
-
-    def decrease_master(self):
+    def cmd_decrease_master(self):
         self.decrement_hsplit()
         self.decrement_vsplit()
 
@@ -90,7 +98,7 @@ class Center(AutoTile):
         self.error_register_callback(self.increment_vsplit)
         self.enqueue()
 
-    def increase_master(self):
+    def cmd_increase_master(self):
         self.increment_hsplit()
         self.increment_vsplit()
 
@@ -98,16 +106,16 @@ class Center(AutoTile):
         self.error_register_callback(self.decrement_vsplit)
         self.enqueue()
 
-    def next(self):
-        self._lower_master()
-        AutoTile.next(self)
+    def cmd_next(self):
+        self.lower_master()
+        AutoTile.cmd_next(self)
 
-    def previous(self):
-        self._lower_master()
-        AutoTile.previous(self)
+    def cmd_previous(self):
+        self.lower_master()
+        AutoTile.cmd_previous(self)
 
-    def decrement_masters(self):
+    def cmd_decrement_masters(self):
         pass
 
-    def increment_masters(self):
+    def cmd_increment_masters(self):
         pass

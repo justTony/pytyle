@@ -100,6 +100,9 @@ def xinerama_get_screens():
     return ret
 
 def xsync():
-    get_core().GetInputFocus().reply()
+    try:
+        get_core().GetInputFocus().reply()
+    except:
+        return
 
 init()

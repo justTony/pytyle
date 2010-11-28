@@ -18,6 +18,18 @@ class PyTyleConfigParser(ConfigParser.SafeConfigParser):
             return True
         return False
 
+    def gethex(self, section, option):
+        return int(self.get(section, option), 16)
+
+    def getlist(self, section, option):
+        def clean(s):
+            return s.replace('"', '').replace("'", '')
+
+        return map(
+            clean,
+            self.get(section, option).split()
+        )
+
     def getfloatlist(self, section, option):
         try:
             return map(
@@ -35,15 +47,6 @@ class PyTyleConfigParser(ConfigParser.SafeConfigParser):
             )
         except ValueError:
             return self.getlist(section, option)
-
-    def getlist(self, section, option):
-        def clean(s):
-            return s.replace('"', '').replace("'", '')
-
-        return map(
-            clean,
-            self.get(section, option).split()
-        )
 
     def get_option(self, section, option):
         assert option in option_types
@@ -147,6 +150,22 @@ option_types = {
         'exec': PyTyleConfigParser.getboolean,
         'default': True
     },
+    'borders_active_color': {
+        'exec': PyTyleConfigParser.gethex,
+        'default': 0xff0000,
+    },
+    'borders_inactive_color': {
+        'exec': PyTyleConfigParser.gethex,
+        'default': 0x008800,
+    },
+    'borders_catchall_color': {
+        'exec': PyTyleConfigParser.gethex,
+        'default': 0x3366ff,
+    },
+    'placeholder_bg_color': {
+        'exec': PyTyleConfigParser.gethex,
+        'default': 0x000000,
+    },
     'margin': {
         'exec': PyTyleConfigParser.getintlist,
         'default': []
@@ -190,6 +209,10 @@ option_types = {
     'horz_align': {
         'exec': PyTyleConfigParser.get,
         'default': 'left'
+    },
+    'shallow_resize': {
+        'exec': PyTyleConfigParser.getboolean,
+        'default': True
     }
 }
 

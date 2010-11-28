@@ -22,6 +22,9 @@ while True:
     except xcb.xproto.BadAccess, error:
         print error
         break
+    except xcb.xproto.AccessError, error:
+        print error
+        continue
 
     if not event_data:
         continue

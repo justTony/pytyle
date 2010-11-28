@@ -35,7 +35,8 @@ class Command:
         if not self._mod_mask or not self._keycode:
             raise Exception('Commands must have a modifier and a key')
 
-        ptxcb.XROOT.grab_key(self._keycode, self._mod_mask)
+        if not ptxcb.XROOT.grab_key(self._keycode, self._mod_mask):
+            print 'Could not grab key:', keys
 
     def get_original_keybinding(self):
         return self._original_keybinding

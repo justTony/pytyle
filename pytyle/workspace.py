@@ -36,6 +36,12 @@ class Workspace(object):
     def get_monitor(self, mid):
         return self.monitors[mid]
 
+    def get_monitor_xy(self, x, y):
+        for mon in self.iter_monitors():
+            if mon.contains(x, y):
+                return mon
+        return None
+
     def has_monitor(self, mid):
         return mid in self.monitors
 

@@ -1,6 +1,14 @@
 atoms = {
+    '_PYTYLE_TYPE': ('ATOM', 32),
+    '_PYTYLE_TYPE_PLACE_HOLDER': ('ATOM', 32),
+    '_PYTYLE_TYPE_BORDER': ('ATOM', 32),
+
+    'WM_CLASS': ('STRING', 8),
+    'WM_HINTS': ('WM_HINTS', 32),
+    'WM_NAME': ('STRING', 8),
+    'WM_NORMAL_HINTS': ('WM_SIZE_HINTS', 32),
+    'WM_PROTOCOLS': ('ATOM', 32),
     'WM_STATE': ('CARDINAL', 32),
-    'WM_CLASS': ('STRING[]', 8),
 
     '_NET_SUPPORTED': ('ATOM', 32),
     '_NET_CLIENT_LIST': ('WINDOW', 32),

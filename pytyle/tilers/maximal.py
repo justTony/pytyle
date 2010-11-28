@@ -4,8 +4,12 @@ class Maximal(AutoTile):
     def __init__(self, monitor):
         AutoTile.__init__(self, monitor)
 
-    def tile(self):
-        AutoTile.tile(self)
+    #
+    # Commands
+    #
+
+    def cmd_tile(self):
+        AutoTile.cmd_tile(self)
 
         if not self.store.all():
             return
@@ -24,8 +28,8 @@ class Maximal(AutoTile):
         # If we've made it this far, then we've supposedly tiled correctly
         self.error_clear()
 
-    def decrement_masters(self):
+    def cmd_decrement_masters(self):
         pass
 
-    def increment_masters(self):
+    def cmd_increment_masters(self):
         pass

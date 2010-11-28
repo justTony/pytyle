@@ -8,6 +8,10 @@ class AutoTile(Tile):
         self.store = None
         self.cycle_index = 0
 
+    #
+    # Helper methods
+    #
+
     def add(self, win):
         if (
             win.tilable() and self.tiling and
@@ -16,6 +20,32 @@ class AutoTile(Tile):
             cont = Container(self, win)
             self.store.add(cont)
             self.enqueue()
+
+    def remove(self, win, reset_window=False):
+        if win.container and self.tiling:
+            self.store.remove(win.container)
+            win.container.remove(reset_window=reset_window)
+            self.enqueue()
+
+    def mouse_find(self, x, y):
+        if self.store:
+            for cont in self.store.all():
+                x1, x2 = cont.x, cont.x + cont.w
+                y1, y2 = cont.y, cont.y + cont.h
+
+                if (
+                    x >= x1 and x <= x2 and
+                    y >= y1 and y <= y2
+                ):
+                    return cont
+
+        return None
+
+    def mouse_switch(self, cont, x, y):
+        if self.store:
+            switch = self.mouse_find(x, y)
+            if switch:
+                cont.switch(switch)
 
     def borders_add(self, do_window=True):
         if self.store:
@@ -27,6 +57,9 @@ class AutoTile(Tile):
             for cont in self.store.all():
                 cont.decorations(True, do_window)
 
+    def destroy(self):
+        self.detach()
+
     def detach(self):
         self.tiling = False
 
@@ -34,28 +67,24 @@ class AutoTile(Tile):
             for cont in self.store.all()[:]:
                 cont.remove()
 
-            self.store = None
+            self.store.reset()
 
-    def remove(self, win, reset_window=False):
-        if win.container and self.tiling:
-            self.store.remove(win.container)
-            win.container.remove(reset_window=reset_window)
-            self.enqueue()
-
-    # Helpers
-    def _get_active(self):
+    def get_active(self):
         active = self.monitor.get_active()
 
         if active:
             if active.container and active.container in self.store.all():
                 return active.container
-            else:
+            elif self.store:
                 return self.store.all()[0]
 
         return None
 
-    def _get_next(self):
-        active = self._get_active()
+    def get_active_cont(self):
+        return self.get_active()
+
+    def get_next(self):
+        active = self.get_active()
 
         if active:
             a = self.store.all()
@@ -68,15 +97,15 @@ class AutoTile(Tile):
                 else:
                     return a[(a.index(active) - 1) % len(a)]
             else:
-                if s.index(active) == len(s) - 1:
+                if m and s.index(active) == len(s) - 1:
                     return m[-1]
                 else:
                     return a[(a.index(active) + 1) % len(a)]
 
         return None
 
-    def _get_previous(self):
-        active = self._get_active()
+    def get_previous(self):
+        active = self.get_active()
 
         if active:
             a = self.store.all()
@@ -89,43 +118,18 @@ class AutoTile(Tile):
                 else:
                     return a[(a.index(active) + 1) % len(a)]
             else:
-                if s.index(active) == 0:
+                if m and s.index(active) == 0:
                     return m[0]
                 else:
                     return a[(a.index(active) - 1) % len(a)]
 
         return None
 
-    def _screen_focus(self, mid):
-        new_tiler = self.workspace.get_monitor(mid).get_tiler()
-
-        if self != new_tiler and new_tiler.tiling:
-            active = new_tiler._get_active()
-
-            if active:
-                active.activate()
-            elif new_tiler.store.masters:
-                new_tiler.store.masters[0].activate()
-            elif new_tiler.store.slaves:
-                new_tiler.store.slaves[0].activate()
-        elif self != new_tiler:
-            active = self.workspace.get_monitor(mid).get_active()
-            if active:
-                active.activate()
-
-    def _screen_put(self, mid):
-        active = self._get_active()
-        new_tiler = self.workspace.get_monitor(mid).get_tiler()
-
-        if new_tiler != self and active and new_tiler.tiling:
-            active.win.set_monitor(self.workspace.id, mid)
-        elif active and self.monitor.id != mid and self.workspace.has_monitor(mid):
-            mon = self.workspace.get_monitor(mid)
-            active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)
-            active.win.set_monitor(self.workspace.id, mid)
-
+    #
     # Commands
-    def cycle(self):
+    #
+
+    def cmd_cycle(self):
         if self.store.masters and self.store.slaves:
             if self.cycle_index >= len(self.store.slaves):
                 self.cycle_index = 0
@@ -138,17 +142,7 @@ class AutoTile(Tile):
 
             self.cycle_index += 1
 
-    def cycle_tiler(self):
-        self.monitor.cycle()
-
-    def decrease_master(self):
-        pass
-
-    def decrement_masters(self):
-        self.store.dec_masters()
-        self.enqueue()
-
-    def float(self):
+    def cmd_float(self):
         active = self.monitor.get_active()
 
         if active and active.monitor.workspace.id == self.workspace.id and active.monitor.id == self.monitor.id:
@@ -159,80 +153,67 @@ class AutoTile(Tile):
                 active.floating = False
                 self.add(active)
 
-    def focus_master(self):
+    def cmd_focus_master(self):
         master = self.store.masters[0]
 
         if master:
             master.activate()
 
-    def increase_master(self):
+    def cmd_increase_master(self):
         pass
 
-    def increment_masters(self):
+    def cmd_decrease_master(self):
+        pass
+
+    def cmd_increment_masters(self):
         self.store.inc_masters()
         self.enqueue()
 
-    def make_active_master(self):
+    def cmd_decrement_masters(self):
+        self.store.dec_masters()
+        self.enqueue()
+
+    def cmd_make_active_master(self):
         if self.store.masters:
-            active = self._get_active()
+            active = self.get_active()
             master = self.store.masters[0]
 
             if active != master:
                 master.switch(active)
 
-    def next(self):
-        next = self._get_next()
+    def cmd_next(self):
+        next = self.get_next()
 
         if next:
             next.activate()
 
-    def previous(self):
-        previous = self._get_previous()
+    def cmd_previous(self):
+        previous = self.get_previous()
 
         if previous:
             previous.activate()
 
-    def reset(self):
-        self.monitor.tile_reset()
-
-    def screen0_focus(self):
-        self._screen_focus(0)
-
-    def screen1_focus(self):
-        self._screen_focus(1)
-
-    def screen2_focus(self):
-        self._screen_focus(2)
-
-    def screen0_put(self):
-        self._screen_put(0)
-
-    def screen1_put(self):
-        self._screen_put(1)
-
-    def screen2_put(self):
-        self._screen_put(2)
-
-    def switch_next(self):
-        active = self._get_active()
-        next = self._get_next()
+    def cmd_switch_next(self):
+        active = self.get_active()
+        next = self.get_next()
 
         if active and next:
             active.switch(next)
 
-    def switch_previous(self):
-        active = self._get_active()
-        previous = self._get_previous()
+    def cmd_switch_previous(self):
+        active = self.get_active()
+        previous = self.get_previous()
 
         if active and previous:
             active.switch(previous)
 
-    def tile(self):
-        Tile.tile(self)
+    def cmd_tile(self):
+        Tile.cmd_tile(self)
 
         if not self.store:
             self.store = AutoStore()
 
+        if self.store.empty():
             active = self.monitor.get_active()
 
             if active:
@@ -242,14 +223,14 @@ class AutoTile(Tile):
                 if win != active:
                     self.add(win)
 
-    def untile(self):
-        Tile.untile(self)
+    def cmd_untile(self):
+        Tile.cmd_untile(self)
 
         if self.store:
             for cont in self.store.all()[:]:
                 cont.remove(reset_window=True)
 
-            self.store = None
+            self.store.reset()
 
 class AutoStore(object):
     def __init__(self):
@@ -283,6 +264,9 @@ class AutoStore(object):
 
             self.changes = True
 
+    def empty(self):
+        return not self.masters and not self.slaves
+
     def remove(self, cont):
         if cont in self.masters:
             self.masters.remove(cont)
@@ -295,6 +279,11 @@ class AutoStore(object):
             self.slaves.remove(cont)
 
             self.changes = True
+
+    def reset(self):
+        self.masters = []
+        self.slaves = []
+        self.changes = False
 
     def switch(self, cont1, cont2):
         if cont1 in self.masters and cont2 in self.masters:
@@ -310,7 +299,6 @@ class AutoStore(object):
             i1, i2 = self.slaves.index(cont1), self.masters.index(cont2)
             self.slaves[i1], self.masters[i2] = self.masters[i2], self.slaves[i1]
 
-    # Maybe I want to use the active window instead?
     def inc_masters(self):
         self.mcnt = min(self.mcnt + 1, len(self.all()))
 

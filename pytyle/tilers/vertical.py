@@ -8,8 +8,22 @@ class Vertical(AutoTile):
 
         self.hsplit = self.get_option('width_factor')
 
-    def tile(self):
-        AutoTile.tile(self)
+    #
+    # Helper methods
+    #
+
+    def decrement_hsplit(self):
+        self.hsplit -= self.get_option('step_size')
+
+    def increment_hsplit(self):
+        self.hsplit += self.get_option('step_size')
+
+    #
+    # Commands
+    #
+
+    def cmd_tile(self):
+        AutoTile.cmd_tile(self)
 
         m_size = len(self.store.masters)
         s_size = len(self.store.slaves)
@@ -62,19 +76,13 @@ class Vertical(AutoTile):
         # If we've made it this far, then we've supposedly tiled correctly
         self.error_clear()
 
-    def decrement_hsplit(self):
-        self.hsplit -= self.get_option('step_size')
-
-    def increment_hsplit(self):
-        self.hsplit += self.get_option('step_size')
-
-    def decrease_master(self):
+    def cmd_decrease_master(self):
         self.decrement_hsplit()
 
         self.error_register_callback(self.increment_hsplit)
         self.enqueue()
 
-    def increase_master(self):
+    def cmd_increase_master(self):
         self.increment_hsplit()
 
         self.error_register_callback(self.decrement_hsplit)
@@ -86,8 +94,12 @@ class VerticalRows(Vertical):
 
         self.rows = self.get_option('rows')
 
-    def tile(self):
-        AutoTile.tile(self)
+    #
+    # Commands
+    #
+
+    def cmd_tile(self):
+        AutoTile.cmd_tile(self)
 
         m_size = len(self.store.masters)
         s_size = len(self.store.slaves)

@@ -1,6 +1,8 @@
 import ptxcb
 import config
 
+from window import BogusWindow
+
 class Container(object):
     idinc = 1
     active = None
@@ -12,13 +14,13 @@ class Container(object):
         elif Container.active:
             Container.active.borders_normal(Container.active.tiler.decor)
 
-    def __init__(self, tiler, win):
-        self.win = win
+    def __init__(self, tiler, win=None):
         self.tiler = tiler
         self.id = Container.idinc
-        self.x, self.y, self.w, self.h = -1, -1, -1, -1
-
-        self.win.set_container(self)
+        self.x, self.y, self.w, self.h = 0, 0, 1, 1
+        self.empty = True
+        self.default_color = self.tiler.get_option('borders_inactive_color')
+        self.set_window(win)
 
         Container.idinc += 1
 
@@ -30,6 +32,8 @@ class Container(object):
     def activate(self):
         if self.win:
             self.win.activate()
+        else:
+            self.borders_activate(self.tiler.decor)
 
     def borders_activate(self, decor):
         if Container.active and Container.active != self:
@@ -38,18 +42,18 @@ class Container(object):
         Container.active = self
 
         if not decor:
-            self.box_show(0xff0000)
+            self.box_show(self.tiler.get_option('borders_active_color'))
 
     def borders_normal(self, decor):
         if not decor:
-            self.box_show(0x008800)
+            self.box_show(self.default_color)
 
     def box_hide(self):
         for box in self._box.values():
             if box:
                 box.close()
 
-    def box_show(self, color=0x000000):
+    def box_show(self, color):
         if not self.tiler.borders:
             return
 
@@ -77,21 +81,13 @@ class Container(object):
         else:
             self.box_hide()
 
-    def detach(self, reset_window=False):
-        if reset_window:
-            self.win.original_state()
-
-        self.win.set_container(None)
-        self.win.decorations(True)
-        self.win = None
-
     def fit_window(self):
         # Don't do anything if the pointer is on the window...
         if not self.win or self.win.moving:
             return
 
-        if (self.x != -1 and self.y != -1
-            and self.w != -1 and self.h != -1):
+        if (self.x >= 0 and self.y >= 0
+            and self.w > 0 and self.h > 0):
             x, y, w, h = self.x, self.y, self.w, self.h
 
             padding = self.tiler.get_option('padding')
@@ -116,6 +112,9 @@ class Container(object):
 
         self.decorations(self.tiler.decor)
 
+    def still(self):
+        self.moveresize(self.x, self.y, self.w, self.h)
+
     def window_lower(self):
         if self.win:
             self.win.restack(below=True)
@@ -124,13 +123,57 @@ class Container(object):
         if self.win:
             self.win.restack()
 
+    def window_below(self, below):
+        if self.win:
+            self.win.set_below(below)
+
     def remove(self, reset_window=False):
-        self.detach(reset_window)
+        if self.win:
+            if isinstance(self.win, BogusWindow):
+                self.win.close()
+            elif reset_window:
+                self.reset()
+
+            self.win.decorations(True)
+            self.win.set_container(None)
 
         self.box_hide()
 
         if self == Container.active:
             Container.active = None
+
+        self.win = None
+        self.empty = True
+
+    def reset(self, reset_window=False):
+        self.win.original_state()
+        self.win.set_below(False)
+        self.win.decorations(True)
+
+    def set_window(self, win=None, force=False):
+        if hasattr(self, 'win'):
+            if not force and (self.win == win or isinstance(win, BogusWindow)):
+                return
+
+            if self.win:
+                if isinstance(self.win, BogusWindow):
+                    self.win.close()
+                else:
+                    self.win.set_container(None)
+                    self.win.decorations(True)
+
+        if not win:
+            self.win = BogusWindow(
+                self.tiler.workspace.id,
+                self.x, self.y, self.w, self.h,
+                self.tiler.get_option('placeholder_bg_color')
+            )
+            self.empty = True
+        else:
+            self.win = win
+            self.empty = False
+
+        self.win.set_container(self)
 
     def switch(self, cont):
         self.win.container, cont.win.container = cont.win.container, self.win.container
@@ -140,6 +183,9 @@ class Container(object):
             self.borders_activate(self.tiler.decor)
         elif Container.active == self:
             cont.borders_activate(cont.tiler.decor)
+
+        self.empty = isinstance(self.win, BogusWindow)
+        cont.empty = isinstance(cont.win, BogusWindow)
 
         self.fit_window()
         cont.fit_window()

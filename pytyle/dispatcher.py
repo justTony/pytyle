@@ -32,11 +32,15 @@ class Dispatcher(object):
 
     def KeyPressEvent(self):
         cmd = Command.lookup(self._event_data['keycode'], self._event_data['modifiers'])
+
+        if not cmd:
+            return
+
         x = cmd.get_global_command()
 
         if x == 'quit':
             for tiler in state.iter_tilers():
-                tiler.untile()
+                tiler.cmd_untile()
 
             self._stop = True
         elif x == 'debug':
@@ -53,21 +57,31 @@ class Dispatcher(object):
     def ConfigureNotifyEvent(self):
         win = Window.deep_lookup(self._event_data['window'].wid)
 
-        if win and win.lives() and not win.floating:
-            if time.time() - win.pytyle_moved_time > config.get_option('movetime_offset', *state.get_active_wsid_and_mid()):
-                if state.pointer_grab and win.width == self._event_data['width'] and win.height == self._event_data['height']:
-                    pointer = ptxcb.XROOT.query_pointer()
+        mt_off = config.get_option(
+            'movetime_offset',
+            *state.get_active_wsid_and_mid()
+        )
+        if (
+            win and win.lives() and not win.floating and
+            (time.time() - win.pytyle_moved_time) > mt_off
+        ):
+            if (
+                state.pointer_grab and
+                win.width == self._event_data['width'] and
+                win.height == self._event_data['height']
+            ):
+                pointer = ptxcb.XROOT.query_pointer()
 
-                    if ptxcb.XROOT.button_pressed():
-                        state.moving = win
-                        state.moving.moving = True
+                if ptxcb.XROOT.button_pressed():
+                    state.moving = win
+                    state.moving.moving = True
 
-                win.set_geometry(
-                    self._event_data['x'],
-                    self._event_data['y'],
-                    self._event_data['width'],
-                    self._event_data['height']
-                )
+            win.set_geometry(
+                self._event_data['x'],
+                self._event_data['y'],
+                self._event_data['width'],
+                self._event_data['height']
+            )
 
     def PropertyNotifyEvent(self):
         a = self._event_data['atom']
@@ -85,12 +99,18 @@ class Dispatcher(object):
             state.pointer_grab = False
 
             if state.moving:
+                win = state.moving
                 pointer = ptxcb.XROOT.query_pointer()
-                win = Window.deep_lookup(pointer.child)
 
-                if win:
-                    for tiler in state.iter_tilers(win.monitor.workspace.id, win.monitor.id):
-                        tiler.enqueue()
+                tiler = win.get_tiler()
+                if tiler:
+                    if tiler.tiling:
+                        tiler.mouse_switch(
+                            win.container,
+                            pointer.root_x,
+                            pointer.root_y
+                        )
+                    tiler.enqueue()
 
                 state.moving.moving = False
                 state.moving = False

@@ -9,8 +9,40 @@ class Cascade(AutoTile):
         self.hsplit = self.get_option('width_factor')
         self.vsplit = self.get_option('height_factor')
 
-    def tile(self):
-        AutoTile.tile(self)
+    #
+    # Helper methods
+    #
+
+    def raise_active(self):
+        active = self.get_active()
+        if active:
+            active.window_raise()
+
+    def restack(self):
+        for cont in self.store.slaves:
+            cont.window_raise()
+
+        for cont in self.store.masters:
+            cont.window_raise()
+
+    def decrement_hsplit(self):
+        self.hsplit -= self.get_option('step_size')
+
+    def increment_hsplit(self):
+        self.hsplit += self.get_option('step_size')
+
+    def decrement_vsplit(self):
+        self.vsplit -= self.get_option('step_size')
+
+    def increment_vsplit(self):
+        self.vsplit += self.get_option('step_size')
+
+    #
+    # Commands
+    #
+
+    def cmd_tile(self):
+        AutoTile.cmd_tile(self)
 
         m_size = len(self.store.masters)
         s_size = len(self.store.slaves)
@@ -73,36 +105,12 @@ class Cascade(AutoTile):
             )
             cont.window_raise()
 
-        self._raise_active()
+        self.raise_active()
 
         # If we've made it this far, then we've supposedly tiled correctly
         self.error_clear()
 
-    def _raise_active(self):
-        active = self._get_active()
-        if active:
-            active.window_raise()
-
-    def _restack(self):
-        for cont in self.store.slaves:
-            cont.window_raise()
-
-        for cont in self.store.masters:
-            cont.window_raise()
-
-    def decrement_hsplit(self):
-        self.hsplit -= self.get_option('step_size')
-
-    def increment_hsplit(self):
-        self.hsplit += self.get_option('step_size')
-
-    def decrement_vsplit(self):
-        self.vsplit -= self.get_option('step_size')
-
-    def increment_vsplit(self):
-        self.vsplit += self.get_option('step_size')
-
-    def decrease_master(self):
+    def cmd_decrease_master(self):
         self.decrement_hsplit()
         self.decrement_vsplit()
 
@@ -110,7 +118,7 @@ class Cascade(AutoTile):
         self.error_register_callback(self.increment_vsplit)
         self.enqueue()
 
-    def increase_master(self):
+    def cmd_increase_master(self):
         self.increment_hsplit()
         self.increment_vsplit()
 
@@ -118,36 +126,36 @@ class Cascade(AutoTile):
         self.error_register_callback(self.decrement_vsplit)
         self.enqueue()
 
-    def cycle(self):
-        AutoTile.cycle(self)
-        self._restack()
+    def cmd_cycle(self):
+        AutoTile.cmd_cycle(self)
+        self.restack()
 
-    def focus_master(self):
-        self._restack()
-        AutoTile.focus_master(self)
+    def cmd_focus_master(self):
+        self.restack()
+        AutoTile.cmd_focus_master(self)
 
-    def make_active_master(self):
-        AutoTile.make_active_master(self)
-        self._restack()
-        self._raise_active()
+    def cmd_make_active_master(self):
+        AutoTile.cmd_make_active_master(self)
+        self.restack()
+        self.raise_active()
 
-    def next(self):
-        self._restack()
-        AutoTile.next(self)
+    def cmd_next(self):
+        self.restack()
+        AutoTile.cmd_next(self)
 
-    def previous(self):
-        self._restack()
-        AutoTile.previous(self)
+    def cmd_previous(self):
+        self.restack()
+        AutoTile.cmd_previous(self)
 
-    def switch_next(self):
-        AutoTile.switch_next(self)
-        self._restack()
-        self._raise_active()
+    def cmd_switch_next(self):
+        AutoTile.cmd_switch_next(self)
+        self.restack()
+        self.raise_active()
 
-    def switch_previous(self):
-        AutoTile.switch_previous(self)
-        self._restack()
-        self._raise_active()
+    def cmd_switch_previous(self):
+        AutoTile.cmd_switch_previous(self)
+        self.restack()
+        self.raise_active()
 
     def decrement_masters(self):
         pass

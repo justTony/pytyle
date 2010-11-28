@@ -247,6 +247,10 @@ def update_NET_DESKTOP_GEOMETRY(force=False):
                 )
                 mon.calculate_workarea()
         else:
+            for mon in Workspace.iter_all_monitors():
+                for tiler in mon.tilers:
+                    tiler.destroy()
+
             for wid in Window.WINDOWS.keys():
                 Window.remove(wid)
 
