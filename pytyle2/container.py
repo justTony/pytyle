@@ -59,7 +59,7 @@ class Container(object):
 
         x, y, w, h = self.x, self.y, self.w, self.h
 
-        bw = 2
+        bw = self.tiler.get_option('border_width')
 
         self.box_hide()
 

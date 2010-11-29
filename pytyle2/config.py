@@ -150,6 +150,10 @@ option_types = {
         'exec': PyTyleConfigParser.getboolean,
         'default': True
     },
+    'border_width': {
+        'exec': PyTyleConfigParser.getint,
+        'default': 2
+    },
     'borders_active_color': {
         'exec': PyTyleConfigParser.gethex,
         'default': 0xff0000,
