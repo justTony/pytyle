@@ -1,4 +1,4 @@
-from pytyle.tile_auto import AutoTile
+from pt.tile_auto import AutoTile
 
 class Maximal(AutoTile):
     def __init__(self, monitor):

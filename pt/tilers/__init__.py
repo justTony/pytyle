@@ -1,4 +1,4 @@
-import pytyle.tile_manual
+import pt.tile_manual
 
 import cascade
 import center
@@ -6,7 +6,7 @@ import horizontal
 import maximal
 import vertical
 
-ManualTile = pytyle.tile_manual.ManualTile
+ManualTile = pt.tile_manual.ManualTile
 
 Cascade = cascade.Cascade
 Center = center.Center

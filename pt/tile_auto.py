@@ -1,6 +1,5 @@
 from tile import Tile
 from container import Container
-from autostore import AutoStore
 
 class AutoTile(Tile):
     def __init__(self, monitor):

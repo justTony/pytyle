@@ -1,6 +1,11 @@
 import ConfigParser
+import distutils.sysconfig
 import os
+import os.path
+import pwd
 import re
+import shutil
+import sys
 
 # This is PyTyle's custom configuration parser. There are two main
 # goals accomplished with this sub-class:
@@ -115,12 +120,27 @@ class PyTyleConfigParser(ConfigParser.SafeConfigParser):
 
         return retval
 
-# A list of places to check for the configuration file
-paths = [
-    os.path.join('config.ini'),
-    os.path.join('..', 'config.ini'),
-    os.path.join('..', '..', 'config.ini')
-]
+# Find the configuration file
+xdg = os.getenv('XDG_CONFIG_HOME')
+home = os.getenv('HOME')
+logname = os.getenv('LOGNAME')
+user_name = pwd.getpwuid(os.getuid())[0]
+config_path = None
+config_filename = 'config.ini'
+default_file = os.path.join(
+    distutils.sysconfig.get_python_lib(),
+    'pt',
+    config_filename
+)
+
+if xdg:
+    config_path = os.path.join(xdg, 'pytyle2')
+elif home:
+    config_path = os.path.join(home, '.config', 'pytyle2')
+elif logname:
+    config_path = os.path.join(logname, '.config', 'pytyle2')
+elif user_name:
+    config_path = os.path.join(user_name, '.config', 'pytyle2')
 
 # A list of supported options independent of section header.
 # Please do not change settings here. The settings specified here
@@ -265,15 +285,37 @@ wmt = {}
 # Loads the configuration file. This is called automatically when
 # this module is imported, but it can also be called again when
 # the settings ought to be refreshed.
+# If no configuration file exists, create one.
 def load_config_file():
     global glbls, keybindings, wmt, paths
 
-    conf = PyTyleConfigParser()
+    # Find the configuration file... create one if it doesn't exist
+    if not config_path:
+        config_file = default_file
+    else:
+        config_file = os.path.join(config_path, config_filename)
 
-    for path in paths:
-        if os.path.isfile(path):
-            conf.read(path)
-            break
+        if not os.access(config_file, os.F_OK | os.R_OK):
+            if not os.path.exists(config_path):
+                os.makedirs(config_path)
+
+            if os.access(default_file, os.F_OK | os.R_OK):
+                shutil.copyfile(default_file, config_file)
+
+    # Something went wrong...
+    if not os.access(config_file, os.F_OK | os.R_OK):
+        config_file = default_file
+
+    if not os.access(config_file, os.F_OK | os.R_OK):
+        print '''
+            The configuration file could not be loaded. Please check to make
+            sure a configuration file exists at ~/.config/pytyle2/config.ini
+            or in the Python package directory.
+        '''
+        sys.exit(0)
+
+    conf = PyTyleConfigParser()
+    conf.read(config_file)
 
     k_global = conf.get_global_keybindings()
     k_auto = conf.get_auto_keybindings()
