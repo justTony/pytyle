@@ -25,10 +25,7 @@ import xcb.xproto
 import pt.config as config
 import pt.ptxcb as ptxcb
 import pt.state as state
-from pt.command import Command
 from pt.dispatcher import Dispatcher
-
-Command.init()
 
 state.apply_config()
 

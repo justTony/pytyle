@@ -32,9 +32,8 @@ Check other window managers: Compiz, Metacity, Fluxbox, PekWM
 Implement some error-checking mechanisms to stop windows from being
 resized to bad sizes (especially in the manual tiling layout).
 
-Allowing keybindings changes on-the-fly via the configuration file. (All
-other options can be changed on-the-fly currently.)
-
 Implement a command line interface.
+
+Be smarter about returning windows to their "original" state.
 
 Code clean up and better documentation.

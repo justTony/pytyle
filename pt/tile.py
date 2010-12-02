@@ -22,6 +22,8 @@ class Tile(object):
                     tiler.enqueue(force_tiling=True)
                 elif tiler.tiling:
                     getattr(tiler, 'cmd_' + cmd_nm)()
+            elif cmd_nm and cmd_nm.startswith('tile.'):
+                tiler.monitor.cycle(tiler_name=cmd_nm[cmd_nm.index('.') + 1:])
             else:
                 print 'Invalid command %s' % cmd_nm
 

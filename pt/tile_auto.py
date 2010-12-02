@@ -57,7 +57,7 @@ class AutoTile(Tile):
                 cont.decorations(True, do_window)
 
     def destroy(self):
-        self.detach()
+        self.cmd_untile()
 
     def detach(self):
         self.tiling = False

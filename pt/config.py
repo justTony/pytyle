@@ -317,6 +317,9 @@ def load_config_file():
     conf = PyTyleConfigParser()
     conf.read(config_file)
 
+    glbls = {}
+    keybindings = {}
+
     k_global = conf.get_global_keybindings()
     k_auto = conf.get_auto_keybindings()
     k_manual = conf.get_manual_keybindings()

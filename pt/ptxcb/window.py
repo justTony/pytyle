@@ -256,31 +256,6 @@ class Window(object):
                 'top': 0, 'bottom': 0
             }
 
-    def grab_key(self, key, modifiers):
-        try:
-            addmods = [
-                0,
-                xcb.xproto.ModMask.Lock,
-                xcb.xproto.ModMask._2,
-                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
-            ]
-
-            for mod in addmods:
-                cook = connection.get_core().GrabKeyChecked(
-                    True,
-                    self.wid,
-                    modifiers | mod,
-                    key,
-                    xcb.xproto.GrabMode.Async,
-                    xcb.xproto.GrabMode.Async
-                )
-
-                cook.check()
-
-            return True
-        except xcb.xproto.BadAccess:
-            return None
-
     def listen(self):
         self.set_event_masks(
             xcb.xproto.EventMask.PropertyChange |
@@ -431,6 +406,31 @@ class Window(object):
         except:
             print traceback.format_exc()
 
+    def grab_key(self, key, modifiers):
+        try:
+            addmods = [
+                0,
+                xcb.xproto.ModMask.Lock,
+                xcb.xproto.ModMask._2,
+                xcb.xproto.ModMask._2 | xcb.xproto.ModMask.Lock
+            ]
+
+            for mod in addmods:
+                cook = connection.get_core().GrabKeyChecked(
+                    True,
+                    self.wid,
+                    modifiers | mod,
+                    key,
+                    xcb.xproto.GrabMode.Async,
+                    xcb.xproto.GrabMode.Async
+                )
+
+                cook.check()
+
+            return True
+        except xcb.xproto.BadAccess:
+            return False
+
     def ungrab_key(self, key, modifiers):
         try:
             addmods = [
@@ -441,11 +441,13 @@ class Window(object):
             ]
 
             for mod in addmods:
-                connection.get_core().UngrabKey(
+                cook = connection.get_core().UngrabKeyChecked(
                     key,
                     self.wid,
                     modifiers | mod,
                 )
+
+                cook.check()
         except:
             print traceback.format_exc()
             print 'Could not ungrab key:', modifiers, '---', key

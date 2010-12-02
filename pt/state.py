@@ -3,6 +3,7 @@ import time
 import ptxcb
 
 import config
+from command import Command
 from window import Window
 from monitor import Monitor
 from workspace import Workspace
@@ -19,6 +20,8 @@ def init():
     load_properties()
 
 def apply_config():
+    Command.init()
+
     for mon in Workspace.iter_all_monitors():
         if config.get_option('tile_on_startup', mon.workspace.id, mon.id):
             mon.tile(force_tiling=True)

@@ -52,7 +52,8 @@ class Monitor(object):
                 self.add_tiler(tiler(self))
 
     def add_tiler(self, tiler):
-        self.tilers.append(tiler)
+        if tiler.get_name() in config.get_option('all_tilers'):
+            self.tilers.append(tiler)
 
     def add_window(self, win):
         self.windows.add(win)
@@ -149,16 +150,27 @@ class Monitor(object):
 
         return False
 
-    def cycle(self):
-        #if self.auto and self.auto_tilers:
+    def cycle(self, tiler_name=None):
         force_tiling = False
+
+        named = [t.get_name() for t in self.tilers]
+        named_tiler = None
+        if tiler_name and tiler_name in named:
+            named_tiler = self.tilers[named.index(tiler_name)]
+            force_tiling=True
+        elif tiler_name:
+            return
+
         if self.get_tiler() and self.get_tiler().tiling:
             force_tiling = True
             self.get_tiler().detach()
 
-        self.tiler = self.tilers[
-            (self.tilers.index(self.tiler) + 1) % len(self.tilers)
-        ]
+        if named_tiler:
+            self.tiler = named_tiler
+        else:
+            self.tiler = self.tilers[
+                (self.tilers.index(self.tiler) + 1) % len(self.tilers)
+            ]
 
         self.calculate_workarea()
         self.tile(force_tiling)
@@ -171,6 +183,9 @@ class Monitor(object):
         return self.active
 
     def get_tiler(self):
+        if not self.tilers:
+            return None
+
         if not self.tiler:
             self.tiler = self.tilers[0]
 
@@ -201,7 +216,9 @@ class Monitor(object):
             self.get_tiler().remove(win)
 
     def tile(self, force_tiling=False):
-        self.get_tiler().enqueue(force_tiling=force_tiling)
+        tiler = self.get_tiler()
+        if tiler:
+            self.get_tiler().enqueue(force_tiling=force_tiling)
 
     def tile_reset(self):
         i = self.tilers.index(self.get_tiler())

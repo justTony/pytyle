@@ -19,6 +19,7 @@ class Command:
         self._glbl = glbl
         self._auto = auto
         self._manual = manual
+        self._keys = keys
 
         for part in keys.split('-'):
             part = part.lower()
@@ -64,6 +65,8 @@ class Command:
 
     @staticmethod
     def init():
+        Command.unbind_all()
+
         keybindings = config.get_keybindings()
         for k in keybindings:
             cmd = Command(
