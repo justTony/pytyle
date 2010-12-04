@@ -41,7 +41,7 @@ def get_active_wsid_and_mid():
     mid = -1
     win = get_active()
 
-    if win:
+    if win and win.monitor and win.monitor.workspace:
         wsid = win.monitor.workspace.id
         mid = win.monitor.id
     else:
