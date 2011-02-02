@@ -133,8 +133,9 @@ class Container(object):
                 self.win.close()
             elif reset_window:
                 self.reset()
+            else:
+                self.win.decorations(True)
 
-            self.win.decorations(True)
             self.win.set_container(None)
 
         self.box_hide()
@@ -148,7 +149,6 @@ class Container(object):
     def reset(self, reset_window=False):
         self.win.original_state()
         self.win.set_below(False)
-        self.win.decorations(True)
 
     def set_window(self, win=None, force=False):
         if hasattr(self, 'win'):

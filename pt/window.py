@@ -95,6 +95,7 @@ class Window(object):
 
         self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
         self.omaximized = self.maximized()
+        self.odecorated = self.decorated()
 
         self._xwin.listen()
 
@@ -154,6 +155,13 @@ class Window(object):
     def maximize(self):
         self._xwin.maximize()
 
+    def decorated(self):
+        states = self.properties['_NET_WM_STATE']
+
+        if '_OB_WM_STATE_UNDECORATED' in states:
+            return False
+        return True
+
     def maximized(self):
         states = self.properties['_NET_WM_STATE']
 
@@ -171,6 +179,7 @@ class Window(object):
         self._xwin.moveresize(x, y, width, height)
 
     def original_state(self):
+        self.decorations(self.odecorated)
         if self.omaximized:
             self.maximize()
         else:
@@ -335,6 +344,7 @@ class BogusWindow(Window):
 
         #self.ox, self.oy, self.owidth, self.oheight = self._xwin.get_geometry()
         self.omaximized = self.maximized()
+        self.odecorated = self.decorated()
 
         self._xwin.listen()
 
