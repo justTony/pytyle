@@ -27,7 +27,17 @@ import pt.ptxcb as ptxcb
 import pt.state as state
 from pt.dispatcher import Dispatcher
 
+from pt.window import Window
+from pt.tile import Tile
+
 state.apply_config()
+
+# Apply config may add tiling actions to the queue
+# if tile_on_startup is enabled
+ptxcb.Window.exec_queue()
+Tile.exec_queue()
+
+ptxcb.connection.push()
 
 while True:
     try:
