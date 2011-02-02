@@ -9,7 +9,8 @@ class Command:
         'alt': xcb.xproto.ModMask._1,
         'ctrl': xcb.xproto.ModMask.Control,
         'shift': xcb.xproto.ModMask.Shift,
-        'super': xcb.xproto.ModMask._4
+        'super': xcb.xproto.ModMask._4,
+        'menu': xcb.xproto.ModMask._3
     }
 
     def __init__(self, keys, glbl=None, auto=None, manual=None):
