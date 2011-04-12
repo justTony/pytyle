@@ -157,7 +157,12 @@ def update_property(pname):
 def update_NET_ACTIVE_WINDOW():
     global properties
 
-    set_active(ptxcb.XROOT.get_active_window())
+    active = ptxcb.XROOT.get_active_window()
+    
+    if not active:
+        return
+
+    set_active(active)
 
     properties['_NET_ACTIVE_WINDOW'] = get_active()
 
