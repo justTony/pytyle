@@ -135,13 +135,13 @@ class Tile(object):
                 active.win.set_monitor(self.workspace.id, mid)
             elif active and self.monitor.id != mid:
                 mon = self.workspace.get_monitor(mid)
-                active.win.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
+                active.win.moveresize(mon.wa_x, mon.wa_y, 
                                       active.w, active.h)
                 active.win.set_monitor(self.workspace.id, mid)
         else:
             active = self.monitor.get_active()
             mon = self.workspace.get_monitor(mid)
-            active.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
+            active.moveresize(mon.wa_x, mon.wa_y, 
               active.width if active.width < mon.wa_width else mon.wa_width, 
               active.height if active.height < mon.wa_height else mon.wa_height)
             active.set_monitor(self.workspace.id, mid)
