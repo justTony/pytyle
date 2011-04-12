@@ -103,15 +103,22 @@ class Tile(object):
     def screen_focus(self, mid):
         if not self.workspace.has_monitor(mid):
             return
-
+        
         new_tiler = self.workspace.get_monitor(mid).get_tiler()
 
-        if self != new_tiler:
-            if new_tiler:
-                active = new_tiler.get_active_cont()
+        if new_tiler.tiling:
+            if self != new_tiler:
+                if new_tiler:
+                    active = new_tiler.get_active_cont()
 
-            if not active:
-                active = self.workspace.get_monitor(mid).get_active()
+                if not active:
+                    active = self.workspace.get_monitor(mid).get_active()
+
+                if active:
+                    active.activate()
+        else:
+            mon = self.workspace.get_monitor(mid)
+            active = mon.get_active()
 
             if active:
                 active.activate()
@@ -126,10 +133,10 @@ class Tile(object):
 
             if new_tiler != self and active and new_tiler.tiling:
                 active.win.set_monitor(self.workspace.id, mid)
-            elif self.monitor.id != mid:
+            elif active and self.monitor.id != mid:
                 mon = self.workspace.get_monitor(mid)
                 active.win.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
-                                      active.width, active.height)
+                                      active.w, active.h)
                 active.win.set_monitor(self.workspace.id, mid)
         else:
             active = self.monitor.get_active()
