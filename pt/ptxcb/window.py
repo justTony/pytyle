@@ -556,7 +556,9 @@ class RootWindow(Window):
         self.listen()
 
     def get_active_window(self):
-        return self._get_property('_NET_ACTIVE_WINDOW')[0]
+        raw = self._get_property('_NET_ACTIVE_WINDOW')
+        if raw:
+            return raw[0]
 
     def get_current_desktop(self):
         return self._get_property('_NET_CURRENT_DESKTOP')[0]
