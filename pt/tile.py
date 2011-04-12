@@ -1,3 +1,5 @@
+import re
+
 import config
 from command import Command
 from container import Container
@@ -21,6 +23,9 @@ class Tile(object):
                 if cmd_nm == 'tile':
                     tiler.enqueue(force_tiling=True)
                 elif tiler.tiling:
+                    getattr(tiler, 'cmd_' + cmd_nm)()
+                elif (tiler.get_option('always_monitor_cmd') and
+                      re.match('screen[0-9]_(focus|put)', cmd_nm)):
                     getattr(tiler, 'cmd_' + cmd_nm)()
             elif cmd_nm and cmd_nm.startswith('tile.'):
                 tiler.monitor.cycle(tiler_name=cmd_nm[cmd_nm.index('.') + 1:])
@@ -120,10 +125,17 @@ class Tile(object):
 
         if new_tiler != self and active and new_tiler.tiling:
             active.win.set_monitor(self.workspace.id, mid)
-        elif active and self.monitor.id != mid:
-            mon = self.workspace.get_monitor(mid)
-            active.win.moveresize(mon.wa_x, mon.wa_y, active.w, active.h)
-            active.win.set_monitor(self.workspace.id, mid)
+        elif self.monitor.id != mid:
+            if not active:
+                active = self.monitor.get_active()
+            else:
+                active = active.win
+                
+            if active:
+                mon = self.workspace.get_monitor(mid)
+                active.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
+                                  active.width, active.height)
+                active.set_monitor(self.workspace.id, mid)
 
     #
     # Commands

@@ -198,6 +198,10 @@ option_types = {
         'exec': PyTyleConfigParser.getintlist,
         'default': []
     },
+    'always_monitor_cmd': {
+        'exec': PyTyleConfigParser.getboolean,
+        'default': False
+    },
     'tile_on_startup': {
         'exec': PyTyleConfigParser.getboolean,
         'default': False
