@@ -120,22 +120,25 @@ class Tile(object):
         if not self.workspace.has_monitor(mid):
             return
 
-        active = self.get_active_cont()
-        new_tiler = self.workspace.get_monitor(mid).get_tiler()
+        if self.tiling:
+            active = self.get_active_cont()
+            new_tiler = self.workspace.get_monitor(mid).get_tiler()
 
-        if new_tiler != self and active and new_tiler.tiling:
-            active.win.set_monitor(self.workspace.id, mid)
-        elif self.monitor.id != mid:
-            if not active:
-                active = self.monitor.get_active()
-            else:
-                active = active.win
-                
-            if active:
+            if new_tiler != self and active and new_tiler.tiling:
+                active.win.set_monitor(self.workspace.id, mid)
+            elif self.monitor.id != mid:
                 mon = self.workspace.get_monitor(mid)
-                active.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
-                                  active.width, active.height)
-                active.set_monitor(self.workspace.id, mid)
+                active.win.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
+                                      active.width, active.height)
+                active.win.set_monitor(self.workspace.id, mid)
+        else:
+            active = self.monitor.get_active()
+            mon = self.workspace.get_monitor(mid)
+            active.moveresize(mon.wa_x + 1, mon.wa_y + 1, 
+              active.width if active.width < mon.wa_width else mon.wa_width, 
+              active.height if active.height < mon.wa_height else mon.wa_height)
+            active.set_monitor(self.workspace.id, mid)
+
 
     #
     # Commands
